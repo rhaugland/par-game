@@ -115,7 +115,7 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
       style={{
         width: gridW, height: gridH,
         borderRadius: 12, overflow: 'hidden',
-        backgroundColor: '#eef0f2', position: 'relative',
+        backgroundColor: '#e2e5e9', position: 'relative',
         touchAction: 'none', userSelect: 'none',
         WebkitUserSelect: 'none', cursor: 'pointer',
       }}
@@ -128,7 +128,7 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
           const isWall = cell.type === CellType.Wall;
           const inPath = pathSet.has(`${r},${c}`);
 
-          let bg = '#f8f9fa';
+          let bg = '#f0f1f3';
           if (isWall) bg = '#1a1a2e';
 
           return (
@@ -142,7 +142,7 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
                 borderRadius: isWall ? 4 : 0,
                 display: 'flex', justifyContent: 'center', alignItems: 'center',
                 boxSizing: 'border-box',
-                border: isWall ? 'none' : '0.5px solid rgba(0,0,0,0.04)',
+                border: isWall ? 'none' : '1px solid rgba(0,0,0,0.06)',
                 pointerEvents: 'none',
               }}
             >
