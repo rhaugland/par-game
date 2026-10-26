@@ -41,6 +41,8 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
     const el = gridRef.current;
     if (!el) return null;
     const r = el.getBoundingClientRect();
+    // Check bounds
+    if (x < r.left || x > r.right || y < r.top || y > r.bottom) return null;
     const col = Math.floor((x - r.left) / cellSizeRef.current);
     const row = Math.floor((y - r.top) / cellSizeRef.current);
     if (row >= 0 && row < puzzle.rows && col >= 0 && col < puzzle.cols) return [row, col];
@@ -48,10 +50,12 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
   }, [puzzle.rows, puzzle.cols]);
 
   const startDraw = useCallback((x: number, y: number) => {
+    const c = getCell(x, y);
+    if (!c) return; // touch isn't on the grid
     drawing.current = true;
     cbRef.current.onDrawStart();
-    const c = getCell(x, y);
-    if (c) { lastCell.current = `${c[0]},${c[1]}`; cbRef.current.onCellEnter(c[0], c[1]); }
+    lastCell.current = `${c[0]},${c[1]}`;
+    cbRef.current.onCellEnter(c[0], c[1]);
   }, [getCell]);
 
   const moveDraw = useCallback((x: number, y: number) => {
@@ -64,46 +68,61 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
   }, [getCell]);
 
   const endDraw = useCallback(() => {
+    if (!drawing.current) return;
     drawing.current = false;
     lastCell.current = '';
     cbRef.current.onDrawEnd();
   }, []);
 
+  // Attach to document so SVG overlay can't intercept
   useEffect(() => {
-    const el = gridRef.current;
-    if (!el) return;
-
-    const ts = (e: TouchEvent) => { e.preventDefault(); const t = e.touches[0]; if (t) startDraw(t.clientX, t.clientY); };
-    const tm = (e: TouchEvent) => { e.preventDefault(); const t = e.touches[0]; if (t) moveDraw(t.clientX, t.clientY); };
-    const te = (e: TouchEvent) => { e.preventDefault(); endDraw(); };
-    const md = (e: MouseEvent) => { e.preventDefault(); startDraw(e.clientX, e.clientY); };
+    const ts = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!t) return;
+      const c = getCell(t.clientX, t.clientY);
+      if (c) { e.preventDefault(); startDraw(t.clientX, t.clientY); }
+    };
+    const tm = (e: TouchEvent) => {
+      if (!drawing.current) return;
+      e.preventDefault();
+      const t = e.touches[0];
+      if (t) moveDraw(t.clientX, t.clientY);
+    };
+    const te = (e: TouchEvent) => {
+      if (!drawing.current) return;
+      e.preventDefault();
+      endDraw();
+    };
+    const md = (e: MouseEvent) => {
+      const c = getCell(e.clientX, e.clientY);
+      if (c) { e.preventDefault(); startDraw(e.clientX, e.clientY); }
+    };
     const mm = (e: MouseEvent) => { moveDraw(e.clientX, e.clientY); };
     const mu = () => { endDraw(); };
 
-    el.addEventListener('touchstart', ts, { passive: false });
-    el.addEventListener('touchmove', tm, { passive: false });
-    el.addEventListener('touchend', te, { passive: false });
-    el.addEventListener('touchcancel', te);
-    el.addEventListener('mousedown', md);
-    window.addEventListener('mousemove', mm);
-    window.addEventListener('mouseup', mu);
+    document.addEventListener('touchstart', ts, { passive: false });
+    document.addEventListener('touchmove', tm, { passive: false });
+    document.addEventListener('touchend', te, { passive: false });
+    document.addEventListener('touchcancel', te);
+    document.addEventListener('mousedown', md);
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', mu);
 
     return () => {
-      el.removeEventListener('touchstart', ts);
-      el.removeEventListener('touchmove', tm);
-      el.removeEventListener('touchend', te);
-      el.removeEventListener('touchcancel', te);
-      el.removeEventListener('mousedown', md);
-      window.removeEventListener('mousemove', mm);
-      window.removeEventListener('mouseup', mu);
+      document.removeEventListener('touchstart', ts);
+      document.removeEventListener('touchmove', tm);
+      document.removeEventListener('touchend', te);
+      document.removeEventListener('touchcancel', te);
+      document.removeEventListener('mousedown', md);
+      document.removeEventListener('mousemove', mm);
+      document.removeEventListener('mouseup', mu);
     };
-  }, [startDraw, moveDraw, endDraw]);
+  }, [getCell, startDraw, moveDraw, endDraw]);
 
   const pathSet = new Set(gameState.path.map(([r, c]) => `${r},${c}`));
   const head = gameState.path[gameState.path.length - 1];
   const strokeWidth = cellSize * 0.55;
 
-  // Build SVG path points
   const pathPoints = gameState.path.map(([r, c]) => ({
     x: c * cellSize + cellSize / 2,
     y: r * cellSize + cellSize / 2,
@@ -146,7 +165,6 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
                 pointerEvents: 'none',
               }}
             >
-              {/* Start marker — only show when not yet drawn over */}
               {isStart && !inPath && (
                 <div style={{
                   width: 22, height: 22, borderRadius: 11,
@@ -154,7 +172,6 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
                   boxShadow: '0 0 10px rgba(76,175,80,0.4)',
                 }} />
               )}
-              {/* Goal label */}
               {isEnd && !inPath && (
                 <div style={{
                   padding: '4px 8px', borderRadius: 4,
@@ -187,7 +204,7 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
             </filter>
           </defs>
 
-          {/* Shadow layer */}
+          {/* Shadow */}
           <polyline
             points={pathPoints.map(p => `${p.x},${p.y}`).join(' ')}
             fill="none"
@@ -238,7 +255,7 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
             </>
           )}
 
-          {/* Start circle on top of stripe */}
+          {/* Start circle on stripe */}
           {gameState.path.length > 0 && (
             <circle
               cx={puzzle.start[1] * cellSize + cellSize / 2}
