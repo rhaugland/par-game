@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useState } from 'react';
+import { useRef, useCallback, useState, useEffect, PointerEvent } from 'react';
 import { Puzzle, GameState, CellType, TriviaQuestion } from './engine/types';
 
 const GRID_MARGIN = 24;
@@ -29,116 +29,63 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
   const gridH = cellSize * puzzle.rows;
 
   const gridRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const lastCell = useRef('');
-
-  const cbRef = useRef({ onCellEnter, onDrawStart, onDrawEnd, onTriviaTap });
-  cbRef.current = { onCellEnter, onDrawStart, onDrawEnd, onTriviaTap };
-
-  const cellSizeRef = useRef(cellSize);
-  cellSizeRef.current = cellSize;
-
-  const puzzleRef = useRef(puzzle);
-  puzzleRef.current = puzzle;
-
-  const gameStateRef = useRef(gameState);
-  gameStateRef.current = gameState;
 
   const getCell = useCallback((x: number, y: number): [number, number] | null => {
     const el = gridRef.current;
     if (!el) return null;
     const r = el.getBoundingClientRect();
     if (x < r.left || x > r.right || y < r.top || y > r.bottom) return null;
-    const col = Math.floor((x - r.left) / cellSizeRef.current);
-    const row = Math.floor((y - r.top) / cellSizeRef.current);
+    const col = Math.floor((x - r.left) / cellSize);
+    const row = Math.floor((y - r.top) / cellSize);
     if (row >= 0 && row < puzzle.rows && col >= 0 && col < puzzle.cols) return [row, col];
     return null;
-  }, [puzzle.rows, puzzle.cols]);
+  }, [puzzle.rows, puzzle.cols, cellSize]);
 
-  // All touch/mouse via canvas element (canvas ALWAYS receives touch on Safari)
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const handlePointerDown = useCallback((e: PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    // Capture all future pointer events to this element
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
-    const startDraw = (x: number, y: number) => {
-      const c = getCell(x, y);
-      if (!c) return;
+    const c = getCell(e.clientX, e.clientY);
+    if (!c) return;
 
-      // Check trivia tap
-      const p = puzzleRef.current;
-      const gs = gameStateRef.current;
-      const cell = p.grid[c[0]][c[1]];
-      const key = `${c[0]},${c[1]}`;
-      if (cell.type === CellType.TriviaWall && !gs.completed &&
-          !gs.unlockedCells.has(key) && !gs.failedCells.has(key)) {
-        const q = p.triviaQuestions.get(key);
-        if (q) { cbRef.current.onTriviaTap(c[0], c[1], q); return; }
+    // Check trivia tap first
+    const cell = puzzle.grid[c[0]][c[1]];
+    const key = `${c[0]},${c[1]}`;
+    if (cell.type === CellType.TriviaWall && !gameState.completed &&
+        !gameState.unlockedCells.has(key) && !gameState.failedCells.has(key)) {
+      const q = puzzle.triviaQuestions.get(key);
+      if (q) { onTriviaTap(c[0], c[1], q); return; }
+    }
+
+    drawing.current = true;
+    onDrawStart();
+    lastCell.current = key;
+    onCellEnter(c[0], c[1]);
+  }, [getCell, puzzle, gameState, onCellEnter, onDrawStart, onTriviaTap]);
+
+  const handlePointerMove = useCallback((e: PointerEvent<HTMLDivElement>) => {
+    if (!drawing.current) return;
+    e.preventDefault();
+    const c = getCell(e.clientX, e.clientY);
+    if (c) {
+      const k = `${c[0]},${c[1]}`;
+      if (k !== lastCell.current) {
+        lastCell.current = k;
+        onCellEnter(c[0], c[1]);
       }
+    }
+  }, [getCell, onCellEnter]);
 
-      drawing.current = true;
-      cbRef.current.onDrawStart();
-      lastCell.current = key;
-      cbRef.current.onCellEnter(c[0], c[1]);
-    };
-
-    const moveDraw = (x: number, y: number) => {
-      if (!drawing.current) return;
-      const c = getCell(x, y);
-      if (c) {
-        const k = `${c[0]},${c[1]}`;
-        if (k !== lastCell.current) {
-          lastCell.current = k;
-          cbRef.current.onCellEnter(c[0], c[1]);
-        }
-      }
-    };
-
-    const endDraw = () => {
-      if (!drawing.current) return;
-      drawing.current = false;
-      lastCell.current = '';
-      cbRef.current.onDrawEnd();
-    };
-
-    const ts = (e: TouchEvent) => {
-      const t = e.touches[0];
-      if (!t) return;
-      e.preventDefault();
-      startDraw(t.clientX, t.clientY);
-    };
-    const tm = (e: TouchEvent) => {
-      if (!drawing.current) return;
-      e.preventDefault();
-      const t = e.touches[0];
-      if (t) moveDraw(t.clientX, t.clientY);
-    };
-    const te = (e: TouchEvent) => {
-      e.preventDefault();
-      endDraw();
-    };
-    const md = (e: MouseEvent) => { startDraw(e.clientX, e.clientY); };
-    const mm = (e: MouseEvent) => { moveDraw(e.clientX, e.clientY); };
-    const mu = () => { endDraw(); };
-
-    canvas.addEventListener('touchstart', ts, { passive: false });
-    canvas.addEventListener('touchmove', tm, { passive: false });
-    canvas.addEventListener('touchend', te, { passive: false });
-    canvas.addEventListener('touchcancel', te);
-    canvas.addEventListener('mousedown', md);
-    document.addEventListener('mousemove', mm);
-    document.addEventListener('mouseup', mu);
-
-    return () => {
-      canvas.removeEventListener('touchstart', ts);
-      canvas.removeEventListener('touchmove', tm);
-      canvas.removeEventListener('touchend', te);
-      canvas.removeEventListener('touchcancel', te);
-      canvas.removeEventListener('mousedown', md);
-      document.removeEventListener('mousemove', mm);
-      document.removeEventListener('mouseup', mu);
-    };
-  }, [getCell]);
+  const handlePointerUp = useCallback((e: PointerEvent<HTMLDivElement>) => {
+    if (!drawing.current) return;
+    e.preventDefault();
+    drawing.current = false;
+    lastCell.current = '';
+    onDrawEnd();
+  }, [onDrawEnd]);
 
   const pathSet = new Set(gameState.path.map(([r, c]) => `${r},${c}`));
   const head = gameState.path[gameState.path.length - 1];
@@ -152,14 +99,19 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
   return (
     <div
       ref={gridRef}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       style={{
         width: gridW, height: gridH,
         borderRadius: 12, overflow: 'hidden',
         backgroundColor: '#e2e5e9', position: 'relative',
-        userSelect: 'none', WebkitUserSelect: 'none',
+        touchAction: 'none', userSelect: 'none',
+        WebkitUserSelect: 'none', cursor: 'pointer',
       }}
     >
-      {/* Grid cells */}
+      {/* Grid cells — all pointer-events: none so events pass to grid div */}
       {puzzle.grid.map((row, r) =>
         row.map((cell, c) => {
           const isStart = puzzle.start[0] === r && puzzle.start[1] === c;
@@ -228,80 +180,60 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
         })
       )}
 
-      {/* Paint stripe SVG — all pointer events disabled via SVG attribute */}
+      {/* Paint stripe SVG — pointer-events none via SVG attribute */}
       {pathPoints.length > 0 && (
         <svg
-          style={{ position: 'absolute', inset: 0 }}
-          width={gridW}
-          height={gridH}
+          width={gridW} height={gridH}
           viewBox={`0 0 ${gridW} ${gridH}`}
+          style={{ position: 'absolute', inset: 0 }}
           pointerEvents="none"
         >
           <defs>
-            <linearGradient id="paint-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#66bb6a" />
               <stop offset="100%" stopColor="#43a047" />
             </linearGradient>
-            <filter id="paint-texture">
-              <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="4" result="noise" />
-              <feDisplacementMap in="SourceGraphic" in2="noise" scale="2" />
+            <filter id="pt">
+              <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="4" result="n" />
+              <feDisplacementMap in="SourceGraphic" in2="n" scale="2" />
             </filter>
           </defs>
-
-          <polyline
-            points={pathPoints.map(p => `${p.x},${p.y}`).join(' ')}
-            fill="none" stroke="rgba(0,0,0,0.08)"
-            strokeWidth={strokeWidth + 4} strokeLinecap="round" strokeLinejoin="round"
-          />
-          <polyline
-            points={pathPoints.map(p => `${p.x},${p.y}`).join(' ')}
-            fill="none" stroke="url(#paint-grad)"
-            strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
-            filter="url(#paint-texture)"
-          />
-          <polyline
-            points={pathPoints.map(p => `${p.x},${p.y - strokeWidth * 0.15}`).join(' ')}
-            fill="none" stroke="rgba(255,255,255,0.25)"
-            strokeWidth={strokeWidth * 0.3} strokeLinecap="round" strokeLinejoin="round"
-          />
-
-          {head && (
-            <>
-              <circle cx={head[1] * cellSize + cellSize / 2} cy={head[0] * cellSize + cellSize / 2}
-                r={strokeWidth * 0.42} fill="#2e7d32" opacity={0.3} />
-              <circle cx={head[1] * cellSize + cellSize / 2} cy={head[0] * cellSize + cellSize / 2}
-                r={strokeWidth * 0.32} fill="#fff" opacity={0.9} />
-            </>
-          )}
-
-          {gameState.path.length > 0 && (
-            <circle cx={puzzle.start[1] * cellSize + cellSize / 2} cy={puzzle.start[0] * cellSize + cellSize / 2}
-              r={strokeWidth * 0.35} fill="#2e7d32" stroke="#fff" strokeWidth={2} />
-          )}
-
-          {gameState.completed && (
-            <>
-              <circle cx={puzzle.end[1] * cellSize + cellSize / 2} cy={puzzle.end[0] * cellSize + cellSize / 2}
-                r={strokeWidth * 0.4} fill="#4caf50" />
-              <text x={puzzle.end[1] * cellSize + cellSize / 2} y={puzzle.end[0] * cellSize + cellSize / 2 + 3}
-                textAnchor="middle" fill="#fff" fontSize={8} fontWeight={800} letterSpacing={1}>
-                GOAL
-              </text>
-            </>
-          )}
+          <g pointerEvents="none">
+            <polyline points={pathPoints.map(p => `${p.x},${p.y}`).join(' ')}
+              fill="none" stroke="rgba(0,0,0,0.08)"
+              strokeWidth={strokeWidth + 4} strokeLinecap="round" strokeLinejoin="round" />
+            <polyline points={pathPoints.map(p => `${p.x},${p.y}`).join(' ')}
+              fill="none" stroke="url(#pg)"
+              strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
+              filter="url(#pt)" />
+            <polyline points={pathPoints.map(p => `${p.x},${p.y - strokeWidth * 0.15}`).join(' ')}
+              fill="none" stroke="rgba(255,255,255,0.25)"
+              strokeWidth={strokeWidth * 0.3} strokeLinecap="round" strokeLinejoin="round" />
+            {head && (
+              <>
+                <circle cx={head[1] * cellSize + cellSize / 2} cy={head[0] * cellSize + cellSize / 2}
+                  r={strokeWidth * 0.42} fill="#2e7d32" opacity={0.3} />
+                <circle cx={head[1] * cellSize + cellSize / 2} cy={head[0] * cellSize + cellSize / 2}
+                  r={strokeWidth * 0.32} fill="#fff" opacity={0.9} />
+              </>
+            )}
+            {gameState.path.length > 0 && (
+              <circle cx={puzzle.start[1] * cellSize + cellSize / 2} cy={puzzle.start[0] * cellSize + cellSize / 2}
+                r={strokeWidth * 0.35} fill="#2e7d32" stroke="#fff" strokeWidth={2} />
+            )}
+            {gameState.completed && (
+              <>
+                <circle cx={puzzle.end[1] * cellSize + cellSize / 2} cy={puzzle.end[0] * cellSize + cellSize / 2}
+                  r={strokeWidth * 0.4} fill="#4caf50" />
+                <text x={puzzle.end[1] * cellSize + cellSize / 2} y={puzzle.end[0] * cellSize + cellSize / 2 + 3}
+                  textAnchor="middle" fill="#fff" fontSize={8} fontWeight={800} letterSpacing={1}>
+                  GOAL
+                </text>
+              </>
+            )}
+          </g>
         </svg>
       )}
-
-      {/* Canvas touch surface — canvas ALWAYS receives touch events on Safari */}
-      <canvas
-        ref={canvasRef}
-        width={gridW}
-        height={gridH}
-        style={{
-          position: 'absolute', inset: 0, zIndex: 20,
-          touchAction: 'none', cursor: 'pointer',
-        }}
-      />
     </div>
   );
 }
