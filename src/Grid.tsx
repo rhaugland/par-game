@@ -349,12 +349,16 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
         </svg>
       )}
 
-      {/* Transparent touch-capture overlay — sits on top of everything */}
+      {/* Touch-capture overlay — sits on top of everything.
+          Safari needs a non-transparent background to register touch events. */}
       <div
         ref={overlayRef}
         style={{
           position: 'absolute', inset: 0, zIndex: 10,
           touchAction: 'none',
+          backgroundColor: 'rgba(0,0,0,0.001)',
+          WebkitTapHighlightColor: 'transparent',
+          cursor: 'pointer',
         }}
       />
     </div>
