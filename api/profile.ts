@@ -1,7 +1,5 @@
-import { getUserId, unauthorized, json } from './_auth';
-import { getDb } from './_db';
-
-export const config = { runtime: 'edge' };
+import { getUserId, unauthorized, json } from './_auth.js';
+import { getDb } from './_db.js';
 
 export default async function handler(req: Request) {
   const userId = await getUserId(req);
