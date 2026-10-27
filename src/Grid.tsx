@@ -156,16 +156,19 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
           const isEnd = puzzle.end[0] === r && puzzle.end[1] === c;
           const isWall = cell.type === CellType.Wall;
           const isTrivia = cell.type === CellType.TriviaWall;
-          const isUnlocked = gameState.unlockedCells.has(`${r},${c}`);
-          const inPath = pathSet.has(`${r},${c}`);
-          const triviaQ = puzzle.triviaQuestions.get(`${r},${c}`);
+          const cellKey = `${r},${c}`;
+          const isUnlocked = gameState.unlockedCells.has(cellKey);
+          const isFailed = gameState.failedCells.has(cellKey);
+          const inPath = pathSet.has(cellKey);
+          const triviaQ = puzzle.triviaQuestions.get(cellKey);
 
           let bg = '#f0f1f3';
           if (isWall) bg = '#1a1a2e';
-          if (isTrivia && !isUnlocked) bg = '#2d1b69';
+          if (isTrivia && !isUnlocked && !isFailed) bg = '#2d1b69';
+          if (isTrivia && isFailed) bg = '#1a1a2e'; // locked permanently, looks like wall
           if (isTrivia && isUnlocked) bg = '#f0f1f3';
 
-          const isTappable = isTrivia && !isUnlocked && !gameState.completed;
+          const isTappable = isTrivia && !isUnlocked && !isFailed && !gameState.completed;
 
           return (
             <div
@@ -188,7 +191,7 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
                 overflow: 'hidden',
               }}
             >
-              {isTrivia && !isUnlocked && (
+              {isTrivia && !isUnlocked && !isFailed && (
                 <div style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
                 }}>
@@ -202,6 +205,11 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
                     ?
                   </span>
                 </div>
+              )}
+              {isTrivia && isFailed && (
+                <span style={{ fontSize: Math.max(cellSize * 0.3, 10), color: '#ef5350', fontWeight: 800 }}>
+                  +1
+                </span>
               )}
               {isStart && !inPath && (
                 <div style={{

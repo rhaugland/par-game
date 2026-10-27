@@ -26,7 +26,7 @@ export default function App() {
 
     const record = getTodayRecord(seed);
     if (record?.completed) {
-      setGameState({ path: [], drawing: false, completed: true, score: record.score, unlockedCells: new Set() });
+      setGameState({ path: [], drawing: false, completed: true, score: record.score, unlockedCells: new Set(), failedCells: new Set(), triviaPenalty: 0 });
       setShowScore(true);
     } else {
       setGameState(createGameState(p));
@@ -57,12 +57,18 @@ export default function App() {
   }, []);
 
   const handleTriviaResult = useCallback((correct: boolean) => {
-    if (correct && triviaTarget) {
+    if (triviaTarget) {
       setGameState(s => {
         if (!s) return s;
-        const newUnlocked = new Set(s.unlockedCells);
-        newUnlocked.add(`${triviaTarget.r},${triviaTarget.c}`);
-        return { ...s, unlockedCells: newUnlocked };
+        if (correct) {
+          const newUnlocked = new Set(s.unlockedCells);
+          newUnlocked.add(`${triviaTarget.r},${triviaTarget.c}`);
+          return { ...s, unlockedCells: newUnlocked };
+        } else {
+          const newFailed = new Set(s.failedCells);
+          newFailed.add(`${triviaTarget.r},${triviaTarget.c}`);
+          return { ...s, failedCells: newFailed, triviaPenalty: s.triviaPenalty + 1 };
+        }
       });
     }
     setTriviaTarget(null);
@@ -74,7 +80,7 @@ export default function App() {
     setPuzzle(p);
     const record = getTodayRecord(seed);
     if (record?.completed) {
-      setGameState({ path: [], drawing: false, completed: true, score: record.score, unlockedCells: new Set() });
+      setGameState({ path: [], drawing: false, completed: true, score: record.score, unlockedCells: new Set(), failedCells: new Set(), triviaPenalty: 0 });
     } else {
       setGameState(createGameState(p));
     }
@@ -87,7 +93,8 @@ export default function App() {
   if (!puzzle || !gameState) return null;
 
   const moves = getMoves(gameState);
-  const diff = moves - puzzle.par;
+  const penalty = gameState.triviaPenalty;
+  const diff = (moves + penalty) - puzzle.par;
 
   return (
     <div style={styles.container}>
@@ -103,8 +110,8 @@ export default function App() {
         </div>
         <div style={styles.divider} />
         <div style={styles.col}>
-          <div style={styles.num}>{moves}</div>
-          <div style={styles.lbl}>moves</div>
+          <div style={styles.num}>{moves}{penalty > 0 ? <span style={{ color: '#ef5350', fontSize: 16 }}> +{penalty}</span> : ''}</div>
+          <div style={styles.lbl}>moves{penalty > 0 ? ' + penalty' : ''}</div>
         </div>
         <div style={styles.divider} />
         <div style={styles.col}>

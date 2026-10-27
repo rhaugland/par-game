@@ -267,20 +267,19 @@ function fallbackPuzzle(config: GenConfig, _rng: () => number): Puzzle {
   return { grid, rows, cols, start, end, par, triviaQuestions: new Map() };
 }
 
-// Find wall cells that, if removed, would create a shortcut below par.
-// Convert 2-3 of them to trivia walls and assign questions.
+// Place 2-4 trivia walls. Prioritize walls that create shortcuts (below par),
+// but also include walls that just connect to the path network as fallbacks.
+// Every puzzle is guaranteed at least 1 trivia wall.
 function placeTriviaWalls(puzzle: Puzzle, rng: () => number): Puzzle {
   const { grid, rows, cols, start, end, par } = puzzle;
   const dirs: [number, number][] = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 
-  // Find wall cells adjacent to at least 2 non-wall cells (potential shortcuts)
-  const candidates: [number, number, number][] = []; // [r, c, newPar]
+  const shortcuts: [number, number, number][] = []; // walls that create shorter paths
+  const connectors: [number, number, number][] = []; // walls adjacent to 2+ open cells
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       if (grid[r][c].type !== CellType.Wall) continue;
-      // Don't use edge cells — they look weird
-      if (r === 0 || r === rows - 1 || c === 0 || c === cols - 1) continue;
 
       // Count adjacent open cells
       let openNeighbors = 0;
@@ -293,29 +292,65 @@ function placeTriviaWalls(puzzle: Puzzle, rng: () => number): Puzzle {
       }
       if (openNeighbors < 2) continue;
 
-      // Test: if this wall were open, does it create a shorter path?
+      // Test: if this wall were open, what's the new shortest path?
       const openSet = new Set([`${r},${c}`]);
       const newPar = solveWithOpenCells(grid, start, end, rows, cols, openSet);
-      if (newPar !== null && newPar < par) {
-        candidates.push([r, c, newPar]);
+      if (newPar === null) continue;
+
+      if (newPar < par) {
+        shortcuts.push([r, c, newPar]);
+      } else {
+        connectors.push([r, c, newPar]);
       }
     }
   }
 
-  if (candidates.length === 0) return puzzle;
+  // Sort shortcuts by savings (biggest first)
+  shortcuts.sort((a, b) => a[2] - b[2] || rng() - 0.5);
+  // Shuffle connectors
+  connectors.sort(() => rng() - 0.5);
 
-  // Sort by savings (biggest shortcut first), then shuffle within equal savings
-  candidates.sort((a, b) => {
-    const diff = a[2] - b[2];
-    return diff !== 0 ? diff : rng() - 0.5;
-  });
+  // Pick: prioritize shortcuts, fill with connectors to reach 2-4
+  const targetCount = Math.floor(rng() * 3) + 2; // 2-4
+  const selected: [number, number, number][] = [];
 
-  // Pick 2-3 trivia walls (not all — that would make it too easy)
-  const count = Math.min(candidates.length, rng() < 0.5 ? 2 : 3);
-  const selected = candidates.slice(0, count);
+  // Take shortcuts first (at least 1 if available)
+  for (const s of shortcuts) {
+    if (selected.length >= targetCount) break;
+    selected.push(s);
+  }
 
-  // Get trivia questions
-  const questions = pickTriviaQuestions(rng, count);
+  // Fill with connectors
+  for (const c of connectors) {
+    if (selected.length >= targetCount) break;
+    selected.push(c);
+  }
+
+  // Guarantee at least 1 — if we still have nothing, pick any wall with 1+ open neighbor
+  if (selected.length === 0) {
+    for (let r = 1; r < rows - 1; r++) {
+      for (let c = 1; c < cols - 1; c++) {
+        if (grid[r][c].type !== CellType.Wall) continue;
+        let hasOpen = false;
+        for (const [dr, dc] of dirs) {
+          const nr = r + dr, nc = c + dc;
+          if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].type !== CellType.Wall) {
+            hasOpen = true;
+            break;
+          }
+        }
+        if (hasOpen) {
+          selected.push([r, c, par]);
+          break;
+        }
+      }
+      if (selected.length > 0) break;
+    }
+  }
+
+  if (selected.length === 0) return puzzle;
+
+  const questions = pickTriviaQuestions(rng, selected.length);
   const triviaQuestions = new Map<string, TriviaQuestion>();
 
   for (let i = 0; i < selected.length; i++) {

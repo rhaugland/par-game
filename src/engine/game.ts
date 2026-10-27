@@ -7,6 +7,8 @@ export function createGameState(puzzle: Puzzle): GameState {
     completed: false,
     score: null,
     unlockedCells: new Set(),
+    failedCells: new Set(),
+    triviaPenalty: 0,
   };
 }
 
@@ -55,7 +57,7 @@ export function addToPath(
   const newPath: [number, number][] = [...state.path, [r, c]];
   const completed = r === puzzle.end[0] && c === puzzle.end[1];
   const moves = newPath.length - 1; // don't count start cell
-  const score = completed ? moves - puzzle.par : null;
+  const score = completed ? (moves + state.triviaPenalty) - puzzle.par : null;
 
   return {
     path: newPath,
@@ -63,6 +65,8 @@ export function addToPath(
     completed,
     score,
     unlockedCells: state.unlockedCells,
+    failedCells: state.failedCells,
+    triviaPenalty: state.triviaPenalty,
   };
 }
 

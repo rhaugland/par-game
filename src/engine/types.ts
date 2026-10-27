@@ -35,6 +35,8 @@ export interface GameState {
   completed: boolean;
   score: number | null;
   unlockedCells: Set<string>; // "r,c" of trivia walls answered correctly
+  failedCells: Set<string>; // "r,c" of trivia walls answered wrong
+  triviaPenalty: number; // +1 per wrong trivia answer
 }
 
 export interface DailyRecord {
