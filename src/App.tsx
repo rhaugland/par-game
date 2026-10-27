@@ -335,19 +335,11 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
           <div style={{ ...s.day, color: t.sub }}>#{dayNumber()}</div>
         </div>
         <div style={s.headerRight}>
-          <div style={{
-            fontSize: 13, fontWeight: 600, color: t.text,
-            marginRight: 4,
-          }}>
-            🎟{tickets}
-          </div>
           <button style={s.iconBtn} onClick={() => setShowArcade(true)}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.icon} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="6" width="20" height="12" rx="2" />
-              <line x1="6" y1="12" x2="10" y2="12" />
-              <line x1="8" y1="10" x2="8" y2="14" />
-              <circle cx="16" cy="10" r="1" fill={t.icon} />
-              <circle cx="18" cy="12" r="1" fill={t.icon} />
+              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <path d="M16 10a4 4 0 0 1-8 0" />
             </svg>
           </button>
           <button style={s.iconBtn} onClick={() => setShowStats(true)}>

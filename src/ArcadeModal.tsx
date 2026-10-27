@@ -37,17 +37,22 @@ export default function ArcadeModal({ visible, onClose, tickets, inventory, powe
 
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: text, letterSpacing: 2, textTransform: 'uppercase' }}>
-            Arcade
+          <div style={{ fontSize: 18, fontWeight: 700, color: text, letterSpacing: 3, textTransform: 'uppercase' }}>
+            Shop
           </div>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             marginTop: 10, padding: '8px 20px', borderRadius: 100,
             background: dark ? '#2a2a2a' : '#f0f0f0',
-            fontSize: 18, fontWeight: 700, color: text,
+            fontSize: 16, fontWeight: 700, color: text,
           }}>
-            🎟 {tickets}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M8 12h8M12 8v8" />
+            </svg>
+            {tickets}
           </div>
+          <div style={{ fontSize: 10, color: sub, marginTop: 4, letterSpacing: 1 }}>TOKENS</div>
         </div>
 
         {/* Shop + Inventory combined */}
@@ -102,7 +107,7 @@ export default function ArcadeModal({ visible, onClose, tickets, inventory, powe
                         WebkitTapHighlightColor: 'transparent',
                       }}
                     >
-                      {cost}🎟
+                      {cost} tk
                     </button>
                     {/* Use button */}
                     <button
@@ -126,7 +131,7 @@ export default function ArcadeModal({ visible, onClose, tickets, inventory, powe
         </div>
 
         <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11, color: sub }}>
-          Earn tickets by scoring Par or better
+          Earn tokens by scoring Par or better
         </div>
       </div>
     </div>
