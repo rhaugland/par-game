@@ -78,7 +78,14 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
 
   // Attach to document so SVG overlay can't intercept
   useEffect(() => {
+    // Only handle events that originate from within the grid element
+    const isGridEvent = (target: EventTarget | null): boolean => {
+      if (!target || !gridRef.current) return false;
+      return gridRef.current.contains(target as Node);
+    };
+
     const ts = (e: TouchEvent) => {
+      if (!isGridEvent(e.target)) return;
       const t = e.touches[0];
       if (!t) return;
       const c = getCell(t.clientX, t.clientY);
@@ -96,6 +103,7 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
       endDraw();
     };
     const md = (e: MouseEvent) => {
+      if (!isGridEvent(e.target)) return;
       const c = getCell(e.clientX, e.clientY);
       if (c) { e.preventDefault(); startDraw(e.clientX, e.clientY); }
     };
