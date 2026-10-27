@@ -206,19 +206,27 @@ export default function App() {
             onClick={() => setShowScore(true)}
             style={{
               position: 'absolute', inset: 0, borderRadius: 12,
-              background: 'rgba(255,255,255,0.6)',
+              background: dark ? 'rgba(18,18,18,0.85)' : 'rgba(255,255,255,0.88)',
+              backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
               display: 'flex', flexDirection: 'column',
               justifyContent: 'center', alignItems: 'center',
               cursor: 'pointer', zIndex: 30,
             }}
           >
-            <div style={{ fontSize: 40, fontWeight: 200, color: diff <= 0 ? '#4caf50' : '#ff9800' }}>
-              {diff <= 0 ? diff : `+${diff}`}
+            <div style={{
+              background: dark ? '#1e1e1e' : '#fff',
+              borderRadius: 20, padding: '28px 40px',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.1)',
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 48, fontWeight: 200, color: diff <= 0 ? '#4caf50' : '#ff9800', lineHeight: 1 }}>
+                {diff <= 0 ? diff : `+${diff}`}
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: dark ? '#e0e0e0' : '#1a1a2e', textTransform: 'uppercase', letterSpacing: 3, marginTop: 6 }}>
+                {getScoreLabel(diff)}
+              </div>
+              <div style={{ fontSize: 12, color: '#9e9e9e', marginTop: 12 }}>Tap to view score</div>
             </div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a2e', textTransform: 'uppercase', letterSpacing: 3, marginTop: 4 }}>
-              {getScoreLabel(diff)}
-            </div>
-            <div style={{ fontSize: 12, color: '#9e9e9e', marginTop: 8 }}>Tap to view score</div>
           </div>
         )}
       </div>
