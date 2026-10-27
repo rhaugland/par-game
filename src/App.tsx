@@ -37,7 +37,7 @@ export default function App() {
 
     const record = getTodayRecord(seed);
     if (record?.completed) {
-      setGameState({ path: [], drawing: false, completed: true, score: record.score, unlockedCells: new Set(), failedCells: new Set(), triviaPenalty: 0 });
+      setGameState({ path: record.path || [], drawing: false, completed: true, score: record.score, unlockedCells: new Set(), failedCells: new Set(), triviaPenalty: 0 });
       setShowScore(true);
     } else {
       setGameState(createGameState(p));
@@ -57,6 +57,7 @@ export default function App() {
         saveRecord({
           date: todaySeed(), moves, par: puzzle.par,
           score: next.score ?? 0, completed: true,
+          path: next.path,
         });
         setTimeout(() => setShowScore(true), 400);
       }
@@ -91,7 +92,7 @@ export default function App() {
     setPuzzle(p);
     const record = getTodayRecord(seed);
     if (record?.completed) {
-      setGameState({ path: [], drawing: false, completed: true, score: record.score, unlockedCells: new Set(), failedCells: new Set(), triviaPenalty: 0 });
+      setGameState({ path: record.path || [], drawing: false, completed: true, score: record.score, unlockedCells: new Set(), failedCells: new Set(), triviaPenalty: 0 });
     } else {
       setGameState(createGameState(p));
     }

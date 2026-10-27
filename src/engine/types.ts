@@ -45,4 +45,5 @@ export interface DailyRecord {
   par: number;
   score: number;
   completed: boolean;
+  path?: [number, number][];
 }
