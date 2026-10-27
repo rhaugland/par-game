@@ -1,6 +1,5 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
 import { Puzzle, GameState, CellType, TriviaQuestion } from './engine/types';
-import { getCategoryIcon } from './engine/trivia';
 
 const GRID_MARGIN = 24;
 const MAX_GRID = 420;
@@ -78,16 +77,17 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
 
   // Attach to document so SVG overlay can't intercept
   useEffect(() => {
-    // Only handle events that originate from within the grid element
-    const isGridEvent = (target: EventTarget | null): boolean => {
-      if (!target || !gridRef.current) return false;
-      return gridRef.current.contains(target as Node);
+    // Check that the point isn't covered by a modal overlay
+    const isOnGrid = (x: number, y: number): boolean => {
+      const el = document.elementFromPoint(x, y);
+      if (!el || !gridRef.current) return false;
+      return gridRef.current === el || gridRef.current.contains(el);
     };
 
     const ts = (e: TouchEvent) => {
-      if (!isGridEvent(e.target)) return;
       const t = e.touches[0];
       if (!t) return;
+      if (!isOnGrid(t.clientX, t.clientY)) return;
       const c = getCell(t.clientX, t.clientY);
       if (c) { e.preventDefault(); startDraw(t.clientX, t.clientY); }
     };
@@ -103,7 +103,7 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
       endDraw();
     };
     const md = (e: MouseEvent) => {
-      if (!isGridEvent(e.target)) return;
+      if (!isOnGrid(e.clientX, e.clientY)) return;
       const c = getCell(e.clientX, e.clientY);
       if (c) { e.preventDefault(); startDraw(e.clientX, e.clientY); }
     };
@@ -164,8 +164,8 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
 
           let bg = '#f0f1f3';
           if (isWall) bg = '#1a1a2e';
-          if (isTrivia && !isUnlocked && !isFailed) bg = '#2d1b69';
-          if (isTrivia && isFailed) bg = '#1a1a2e'; // locked permanently, looks like wall
+          if (isTrivia && !isUnlocked && !isFailed) bg = '#2a2a3e';
+          if (isTrivia && isFailed) bg = '#1a1a2e';
           if (isTrivia && isUnlocked) bg = '#f0f1f3';
 
           const isTappable = isTrivia && !isUnlocked && !isFailed && !gameState.completed;
@@ -192,19 +192,12 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
               }}
             >
               {isTrivia && !isUnlocked && !isFailed && (
-                <div style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+                <span style={{
+                  color: '#fff', fontSize: Math.max(cellSize * 0.4, 14),
+                  fontWeight: 700, lineHeight: 1, opacity: 0.9,
                 }}>
-                  <span style={{ fontSize: Math.max(cellSize * 0.35, 12), lineHeight: 1 }}>
-                    {triviaQ ? getCategoryIcon(triviaQ.category) : '?'}
-                  </span>
-                  <span style={{
-                    color: '#b388ff', fontSize: Math.max(cellSize * 0.18, 7),
-                    fontWeight: 800, letterSpacing: 0.5,
-                  }}>
-                    ?
-                  </span>
-                </div>
+                  ?
+                </span>
               )}
               {isTrivia && isFailed && (
                 <span style={{ fontSize: Math.max(cellSize * 0.3, 10), color: '#ef5350', fontWeight: 800 }}>
