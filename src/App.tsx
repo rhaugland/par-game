@@ -98,9 +98,25 @@ export default function App() {
 
   return (
     <div style={styles.container}>
-      <div style={styles.header}>
-        <div style={styles.title}>par</div>
-        <div style={styles.day}>#{dayNumber()}</div>
+      {/* Header row with profile, title, stats */}
+      <div style={styles.headerRow}>
+        <button style={styles.iconBtn} onClick={() => {/* TODO: profile/auth */}}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9e9e9e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+        </button>
+        <div style={styles.headerCenter}>
+          <div style={styles.title}>par</div>
+          <div style={styles.day}>#{dayNumber()}</div>
+        </div>
+        <button style={styles.iconBtn} onClick={() => setShowStats(true)}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9e9e9e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="12" width="4" height="9" rx="1" />
+            <rect x="10" y="7" width="4" height="14" rx="1" />
+            <rect x="17" y="3" width="4" height="18" rx="1" />
+          </svg>
+        </button>
       </div>
 
       <div style={styles.strip}>
@@ -134,13 +150,18 @@ export default function App() {
           onDrawStart={() => setGameState(s => s ? { ...s, drawing: true } : s)}
           onDrawEnd={() => setGameState(s => s ? { ...s, drawing: false } : s)}
           onTriviaTap={handleTriviaTap}
-          disabled={showScore || showStats || !!triviaTarget}
         />
       </div>
 
-      <button style={styles.statsLink} onClick={() => setShowStats(true)}>View Stats</button>
-      <div style={styles.triviaDesc}>
-        Tap <span style={{ fontWeight: 600, color: '#1a1a2e' }}>?</span> blocks for trivia — answer right to unlock a shortcut, wrong adds +1
+      <div style={styles.legend}>
+        <div style={styles.legendLine}>Tap dark blocks with <b>?</b> for trivia — right answer opens a shortcut, wrong adds +1</div>
+        <div style={styles.legendKeys}>
+          <span><b>E?</b> Entertainment</span>
+          <span><b>H?</b> History</span>
+          <span><b>S?</b> Sports</span>
+          <span><b>W?</b> World</span>
+          <span><b>Sc?</b> Science</span>
+        </div>
       </div>
 
       {triviaTarget && (
@@ -157,7 +178,17 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: '100dvh', display: 'flex', flexDirection: 'column',
     alignItems: 'center', background: '#fff', fontFamily: '-apple-system, system-ui, sans-serif',
   },
-  header: { textAlign: 'center', paddingTop: 'max(env(safe-area-inset-top), 16px)' },
+  headerRow: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    width: '100%', maxWidth: 420, padding: '0 16px',
+    paddingTop: 'max(env(safe-area-inset-top), 12px)',
+  },
+  headerCenter: { textAlign: 'center', flex: 1 },
+  iconBtn: {
+    background: 'none', border: 'none', cursor: 'pointer',
+    padding: 8, borderRadius: 8, WebkitTapHighlightColor: 'transparent',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
   title: { fontSize: 36, fontWeight: 200, color: '#1a1a2e', letterSpacing: 10 },
   day: { fontSize: 13, color: '#bdbdbd', letterSpacing: 2, marginTop: 2 },
   strip: { display: 'flex', alignItems: 'center', margin: '20px 0' },
@@ -167,12 +198,15 @@ const styles: Record<string, React.CSSProperties> = {
   divider: { width: 1, height: 32, background: '#eee' },
   hint: { fontSize: 14, color: '#bdbdbd', marginBottom: 16, letterSpacing: 0.3 },
   gridWrap: { boxShadow: '0 4px 20px rgba(0,0,0,0.06)', borderRadius: 12 },
-  statsLink: {
-    marginTop: 20, background: 'none', border: 'none',
-    fontSize: 13, color: '#bdbdbd', letterSpacing: 1, cursor: 'pointer',
+  legend: {
+    marginTop: 20, textAlign: 'center', maxWidth: 340, padding: '0 16px',
   },
-  triviaDesc: {
-    marginTop: 12, fontSize: 12, color: '#bdbdbd', textAlign: 'center',
-    maxWidth: 280, lineHeight: 1.5,
+  legendLine: {
+    fontSize: 13, color: '#9e9e9e', lineHeight: 1.5,
+  },
+  legendKeys: {
+    display: 'flex', flexWrap: 'wrap', justifyContent: 'center',
+    gap: '4px 14px', marginTop: 8,
+    fontSize: 11, color: '#bdbdbd',
   },
 };

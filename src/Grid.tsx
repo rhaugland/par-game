@@ -11,10 +11,9 @@ interface GridProps {
   onDrawStart: () => void;
   onDrawEnd: () => void;
   onTriviaTap: (r: number, c: number, question: TriviaQuestion) => void;
-  disabled?: boolean;
 }
 
-export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDrawEnd, onTriviaTap, disabled }: GridProps) {
+export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDrawEnd, onTriviaTap }: GridProps) {
   const [width, setWidth] = useState(window.innerWidth);
   useEffect(() => {
     const h = () => setWidth(window.innerWidth);
@@ -30,23 +29,26 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
   const gridH = cellSize * puzzle.rows;
 
   const gridRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const drawing = useRef(false);
   const lastCell = useRef('');
 
   const cbRef = useRef({ onCellEnter, onDrawStart, onDrawEnd, onTriviaTap });
   cbRef.current = { onCellEnter, onDrawStart, onDrawEnd, onTriviaTap };
 
-  const disabledRef = useRef(disabled);
-  disabledRef.current = disabled;
-
   const cellSizeRef = useRef(cellSize);
   cellSizeRef.current = cellSize;
+
+  const puzzleRef = useRef(puzzle);
+  puzzleRef.current = puzzle;
+
+  const gameStateRef = useRef(gameState);
+  gameStateRef.current = gameState;
 
   const getCell = useCallback((x: number, y: number): [number, number] | null => {
     const el = gridRef.current;
     if (!el) return null;
     const r = el.getBoundingClientRect();
-    // Check bounds
     if (x < r.left || x > r.right || y < r.top || y > r.bottom) return null;
     const col = Math.floor((x - r.left) / cellSizeRef.current);
     const row = Math.floor((y - r.top) / cellSizeRef.current);
@@ -54,39 +56,61 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
     return null;
   }, [puzzle.rows, puzzle.cols]);
 
-  const startDraw = useCallback((x: number, y: number) => {
-    const c = getCell(x, y);
-    if (!c) return; // touch isn't on the grid
-    drawing.current = true;
-    cbRef.current.onDrawStart();
-    lastCell.current = `${c[0]},${c[1]}`;
-    cbRef.current.onCellEnter(c[0], c[1]);
-  }, [getCell]);
-
-  const moveDraw = useCallback((x: number, y: number) => {
-    if (!drawing.current) return;
-    const c = getCell(x, y);
-    if (c) {
-      const k = `${c[0]},${c[1]}`;
-      if (k !== lastCell.current) { lastCell.current = k; cbRef.current.onCellEnter(c[0], c[1]); }
-    }
-  }, [getCell]);
-
-  const endDraw = useCallback(() => {
-    if (!drawing.current) return;
-    drawing.current = false;
-    lastCell.current = '';
-    cbRef.current.onDrawEnd();
+  // Check if a cell is a tappable trivia wall
+  const checkTriviaTap = useCallback((row: number, col: number): boolean => {
+    const p = puzzleRef.current;
+    const gs = gameStateRef.current;
+    const cell = p.grid[row][col];
+    if (cell.type !== CellType.TriviaWall) return false;
+    if (gs.completed) return false;
+    const key = `${row},${col}`;
+    if (gs.unlockedCells.has(key) || gs.failedCells.has(key)) return false;
+    const q = p.triviaQuestions.get(key);
+    if (!q) return false;
+    cbRef.current.onTriviaTap(row, col, q);
+    return true;
   }, []);
 
-  // Attach to document so SVG overlay can't intercept
+  // Attach touch/mouse directly to the overlay div via ref
   useEffect(() => {
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+
+    const startDraw = (x: number, y: number) => {
+      const c = getCell(x, y);
+      if (!c) return;
+      // Check trivia tap first
+      if (checkTriviaTap(c[0], c[1])) return;
+      drawing.current = true;
+      cbRef.current.onDrawStart();
+      lastCell.current = `${c[0]},${c[1]}`;
+      cbRef.current.onCellEnter(c[0], c[1]);
+    };
+
+    const moveDraw = (x: number, y: number) => {
+      if (!drawing.current) return;
+      const c = getCell(x, y);
+      if (c) {
+        const k = `${c[0]},${c[1]}`;
+        if (k !== lastCell.current) {
+          lastCell.current = k;
+          cbRef.current.onCellEnter(c[0], c[1]);
+        }
+      }
+    };
+
+    const endDraw = () => {
+      if (!drawing.current) return;
+      drawing.current = false;
+      lastCell.current = '';
+      cbRef.current.onDrawEnd();
+    };
+
     const ts = (e: TouchEvent) => {
-      if (disabledRef.current) return;
       const t = e.touches[0];
       if (!t) return;
-      const c = getCell(t.clientX, t.clientY);
-      if (c) { e.preventDefault(); startDraw(t.clientX, t.clientY); }
+      e.preventDefault();
+      startDraw(t.clientX, t.clientY);
     };
     const tm = (e: TouchEvent) => {
       if (!drawing.current) return;
@@ -95,36 +119,39 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
       if (t) moveDraw(t.clientX, t.clientY);
     };
     const te = (e: TouchEvent) => {
-      if (!drawing.current) return;
       e.preventDefault();
       endDraw();
     };
     const md = (e: MouseEvent) => {
-      if (disabledRef.current) return;
-      const c = getCell(e.clientX, e.clientY);
-      if (c) { e.preventDefault(); startDraw(e.clientX, e.clientY); }
+      e.preventDefault();
+      startDraw(e.clientX, e.clientY);
     };
-    const mm = (e: MouseEvent) => { moveDraw(e.clientX, e.clientY); };
-    const mu = () => { endDraw(); };
+    const mm = (e: MouseEvent) => {
+      moveDraw(e.clientX, e.clientY);
+    };
+    const mu = () => {
+      endDraw();
+    };
 
-    document.addEventListener('touchstart', ts, { passive: false });
-    document.addEventListener('touchmove', tm, { passive: false });
-    document.addEventListener('touchend', te, { passive: false });
-    document.addEventListener('touchcancel', te);
-    document.addEventListener('mousedown', md);
+    overlay.addEventListener('touchstart', ts, { passive: false });
+    overlay.addEventListener('touchmove', tm, { passive: false });
+    overlay.addEventListener('touchend', te, { passive: false });
+    overlay.addEventListener('touchcancel', te);
+    overlay.addEventListener('mousedown', md);
+    // Mouse move/up on document so dragging outside the grid still works
     document.addEventListener('mousemove', mm);
     document.addEventListener('mouseup', mu);
 
     return () => {
-      document.removeEventListener('touchstart', ts);
-      document.removeEventListener('touchmove', tm);
-      document.removeEventListener('touchend', te);
-      document.removeEventListener('touchcancel', te);
-      document.removeEventListener('mousedown', md);
+      overlay.removeEventListener('touchstart', ts);
+      overlay.removeEventListener('touchmove', tm);
+      overlay.removeEventListener('touchend', te);
+      overlay.removeEventListener('touchcancel', te);
+      overlay.removeEventListener('mousedown', md);
       document.removeEventListener('mousemove', mm);
       document.removeEventListener('mouseup', mu);
     };
-  }, [getCell, startDraw, moveDraw, endDraw]);
+  }, [getCell, checkTriviaTap]);
 
   const pathSet = new Set(gameState.path.map(([r, c]) => `${r},${c}`));
   const head = gameState.path[gameState.path.length - 1];
@@ -165,15 +192,9 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
           if (isTrivia && isFailed) bg = '#1a1a2e';
           if (isTrivia && isUnlocked) bg = '#f0f1f3';
 
-          const isTappable = isTrivia && !isUnlocked && !isFailed && !gameState.completed;
-
           return (
             <div
               key={`${r}-${c}`}
-              onClick={isTappable && triviaQ ? (e) => {
-                e.stopPropagation();
-                cbRef.current.onTriviaTap(r, c, triviaQ);
-              } : undefined}
               style={{
                 position: 'absolute',
                 left: c * cellSize, top: r * cellSize,
@@ -183,8 +204,7 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
                 display: 'flex', justifyContent: 'center', alignItems: 'center',
                 boxSizing: 'border-box',
                 border: (isWall || (isTrivia && !isUnlocked)) ? 'none' : '1px solid rgba(0,0,0,0.06)',
-                pointerEvents: isTappable ? 'auto' : 'none',
-                cursor: isTappable ? 'pointer' : 'default',
+                pointerEvents: 'none',
                 overflow: 'hidden',
               }}
             >
@@ -328,6 +348,15 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
           )}
         </svg>
       )}
+
+      {/* Transparent touch-capture overlay — sits on top of everything */}
+      <div
+        ref={overlayRef}
+        style={{
+          position: 'absolute', inset: 0, zIndex: 10,
+          touchAction: 'none',
+        }}
+      />
     </div>
   );
 }
