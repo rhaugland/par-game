@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { generatePuzzle } from './engine/generator';
 import { createGameState, addToPath, getMoves } from './engine/game';
-import { todaySeed, dayNumber } from './engine/seed';
+import { todaySeed, dayNumber, seedForDay } from './engine/seed';
 import { Puzzle, GameState, TriviaQuestion } from './engine/types';
 import { saveRecord, getTodayRecord } from './storage';
 import Grid from './Grid';
@@ -68,11 +68,21 @@ export default function App() {
     setTriviaTarget(null);
   }, [triviaTarget]);
 
-  const handleReset = useCallback(() => {
-    if (!puzzle) return;
-    setShowScore(false);
-    setGameState(createGameState(puzzle));
-  }, [puzzle]);
+  const handleViewHole = useCallback((day: number) => {
+    const seed = seedForDay(day);
+    const p = generatePuzzle(seed);
+    setPuzzle(p);
+    const record = getTodayRecord(seed);
+    if (record?.completed) {
+      setGameState({ path: [], drawing: false, completed: true, score: record.score, unlockedCells: new Set() });
+    } else {
+      setGameState(createGameState(p));
+    }
+    setShowStats(false);
+    if (record?.completed) {
+      setTimeout(() => setShowScore(true), 300);
+    }
+  }, []);
 
   if (!puzzle || !gameState) return null;
 
@@ -125,17 +135,13 @@ export default function App() {
         />
       </div>
 
-      {!gameState.completed && moves > 0 && (
-        <button style={styles.resetBtn} onClick={handleReset}>Clear Path</button>
-      )}
-
       <button style={styles.statsLink} onClick={() => setShowStats(true)}>View Stats</button>
 
       {triviaTarget && (
         <TriviaModal question={triviaTarget.question} onResult={handleTriviaResult} />
       )}
-      <ScoreModal visible={showScore} gameState={gameState} puzzle={puzzle} onReset={handleReset} onClose={() => setShowScore(false)} />
-      <StatsModal visible={showStats} onClose={() => setShowStats(false)} />
+      <ScoreModal visible={showScore} gameState={gameState} puzzle={puzzle} onClose={() => setShowScore(false)} />
+      <StatsModal visible={showStats} onClose={() => setShowStats(false)} onViewHole={handleViewHole} />
     </div>
   );
 }
@@ -155,11 +161,6 @@ const styles: Record<string, React.CSSProperties> = {
   divider: { width: 1, height: 32, background: '#eee' },
   hint: { fontSize: 14, color: '#bdbdbd', marginBottom: 16, letterSpacing: 0.3 },
   gridWrap: { boxShadow: '0 4px 20px rgba(0,0,0,0.06)', borderRadius: 12 },
-  resetBtn: {
-    marginTop: 24, padding: '10px 28px', borderRadius: 100,
-    border: '1.5px solid #e0e0e0', background: 'none',
-    fontSize: 14, color: '#9e9e9e', fontWeight: 500, cursor: 'pointer',
-  },
   statsLink: {
     marginTop: 20, background: 'none', border: 'none',
     fontSize: 13, color: '#bdbdbd', letterSpacing: 1, cursor: 'pointer',

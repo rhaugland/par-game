@@ -24,3 +24,9 @@ export function dayNumber(): number {
   now.setHours(0, 0, 0, 0);
   return Math.floor((now.getTime() - launch.getTime()) / 86400000) + 1;
 }
+
+export function seedForDay(day: number): string {
+  const launch = new Date('2026-10-26');
+  const d = new Date(launch.getTime() + (day - 1) * 86400000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}

@@ -7,11 +7,10 @@ interface Props {
   visible: boolean;
   gameState: GameState;
   puzzle: Puzzle;
-  onReset: () => void;
   onClose: () => void;
 }
 
-export default function ScoreModal({ visible, gameState, puzzle, onReset, onClose }: Props) {
+export default function ScoreModal({ visible, gameState, puzzle, onClose }: Props) {
   const [copied, setCopied] = useState(false);
 
   if (!visible) return null;
@@ -27,7 +26,6 @@ export default function ScoreModal({ visible, gameState, puzzle, onReset, onClos
       await navigator.clipboard.writeText(card);
       setCopied(true);
     } catch {
-      // fallback
       const ta = document.createElement('textarea');
       ta.value = card;
       document.body.appendChild(ta);
@@ -41,7 +39,7 @@ export default function ScoreModal({ visible, gameState, puzzle, onReset, onClos
   return (
     <div style={styles.overlay} onClick={onClose}>
       <div style={styles.card} onClick={e => e.stopPropagation()}>
-        <button style={styles.x} onClick={onClose}>&times;</button>
+        <button style={styles.x} onClick={(e) => { e.stopPropagation(); onClose(); }}>&times;</button>
         <div style={styles.day}>#{dayNumber()}</div>
         <div style={{ ...styles.scoreNum, color: good ? '#4caf50' : '#ff9800' }}>
           {score <= 0 ? score : `+${score}`}
@@ -52,7 +50,6 @@ export default function ScoreModal({ visible, gameState, puzzle, onReset, onClos
           <button style={styles.primary} onClick={share}>
             {copied ? 'Copied!' : 'Share Result'}
           </button>
-          <button style={styles.secondary} onClick={onReset}>Try Again</button>
         </div>
         <div style={styles.sub}>Come back tomorrow for a new hole</div>
       </div>
@@ -66,12 +63,15 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100,
   },
   card: {
-    background: '#fff', borderRadius: 24, padding: 36,
+    background: '#fff', borderRadius: 24, padding: '40px 36px 36px',
     width: '85%', maxWidth: 340, textAlign: 'center', position: 'relative',
   },
   x: {
-    position: 'absolute', top: 14, right: 18,
-    background: 'none', border: 'none', fontSize: 22, color: '#bdbdbd', cursor: 'pointer',
+    position: 'absolute', top: 8, right: 8,
+    background: 'none', border: 'none', fontSize: 28, color: '#bdbdbd',
+    cursor: 'pointer', zIndex: 10, width: 44, height: 44,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    WebkitTapHighlightColor: 'transparent',
   },
   day: { fontSize: 13, color: '#bdbdbd', letterSpacing: 2 },
   scoreNum: { fontSize: 72, fontWeight: 200, margin: '4px 0' },
@@ -83,12 +83,7 @@ const styles: Record<string, React.CSSProperties> = {
   btns: { display: 'flex', gap: 10, justifyContent: 'center', marginTop: 28 },
   primary: {
     background: '#1a1a2e', color: '#fff', border: 'none',
-    padding: '14px 24px', borderRadius: 100, fontSize: 14, fontWeight: 500, cursor: 'pointer',
-  },
-  secondary: {
-    background: 'transparent', color: '#616161',
-    border: '1.5px solid #e0e0e0',
-    padding: '14px 24px', borderRadius: 100, fontSize: 14, fontWeight: 500, cursor: 'pointer',
+    padding: '14px 32px', borderRadius: 100, fontSize: 14, fontWeight: 500, cursor: 'pointer',
   },
   sub: { marginTop: 20, fontSize: 12, color: '#bdbdbd', fontStyle: 'italic' },
 };
