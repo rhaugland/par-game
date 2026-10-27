@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { generatePuzzle } from './engine/generator';
-import { createGameState, addToPath, getMoves } from './engine/game';
+import { createGameState, addToPath, getMoves, getScoreLabel } from './engine/game';
 import { todaySeed, dayNumber, seedForDay } from './engine/seed';
 import { Puzzle, GameState, TriviaQuestion } from './engine/types';
 import { saveRecord, getTodayRecord } from './storage';
@@ -103,9 +103,12 @@ export default function App() {
 
   if (!puzzle || !gameState) return null;
 
-  const moves = getMoves(gameState);
+  // For completed games loaded from storage, use stored record values
+  const todayRecord = getTodayRecord(todaySeed());
+  const moves = gameState.completed && todayRecord ? todayRecord.moves : getMoves(gameState);
   const penalty = gameState.triviaPenalty;
-  const diff = (moves + penalty) - puzzle.par;
+  const displayScore = gameState.completed && todayRecord ? todayRecord.score : (moves + penalty) - puzzle.par;
+  const diff = displayScore;
 
   // Theme colors
   const t = {
@@ -182,8 +185,13 @@ export default function App() {
       {!gameState.completed && moves === 0 && (
         <div style={{ ...s.hint, color: t.sub }}>Draw a path from the green dot to the goal</div>
       )}
+      {gameState.completed && (
+        <div style={{ ...s.hint, color: t.sub }}>
+          Completed &middot; <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setShowScore(true)}>view score</span>
+        </div>
+      )}
 
-      <div style={{ ...s.gridWrap, boxShadow: t.gridShadow }}>
+      <div style={{ ...s.gridWrap, boxShadow: t.gridShadow, position: 'relative' }}>
         <Grid
           puzzle={puzzle}
           gameState={gameState}
@@ -192,6 +200,26 @@ export default function App() {
           onDrawEnd={() => setGameState(gs => gs ? { ...gs, drawing: false } : gs)}
           onTriviaTap={handleTriviaTap}
         />
+        {gameState.completed && (
+          <div
+            onClick={() => setShowScore(true)}
+            style={{
+              position: 'absolute', inset: 0, borderRadius: 12,
+              background: 'rgba(255,255,255,0.6)',
+              display: 'flex', flexDirection: 'column',
+              justifyContent: 'center', alignItems: 'center',
+              cursor: 'pointer', zIndex: 30,
+            }}
+          >
+            <div style={{ fontSize: 40, fontWeight: 200, color: diff <= 0 ? '#4caf50' : '#ff9800' }}>
+              {diff <= 0 ? diff : `+${diff}`}
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a2e', textTransform: 'uppercase', letterSpacing: 3, marginTop: 4 }}>
+              {getScoreLabel(diff)}
+            </div>
+            <div style={{ fontSize: 12, color: '#9e9e9e', marginTop: 8 }}>Tap to view score</div>
+          </div>
+        )}
       </div>
 
       <div style={s.legend}>

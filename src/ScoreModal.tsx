@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { GameState, Puzzle } from './engine/types';
 import { getScoreLabel, getMoves } from './engine/game';
-import { dayNumber } from './engine/seed';
-import { getStats } from './storage';
+import { dayNumber, todaySeed } from './engine/seed';
+import { getStats, getTodayRecord } from './storage';
 
 interface Props {
   visible: boolean;
@@ -62,9 +62,10 @@ export default function ScoreModal({ visible, gameState, puzzle, onClose }: Prop
 
   if (!visible) return null;
 
-  const score = gameState.score ?? 0;
+  const record = getTodayRecord(todaySeed());
+  const score = gameState.score ?? record?.score ?? 0;
   const label = getScoreLabel(score);
-  const moves = getMoves(gameState);
+  const moves = record?.moves ?? getMoves(gameState);
   const good = score <= 0;
   const scoreColor = good ? '#4caf50' : '#ff9800';
 
