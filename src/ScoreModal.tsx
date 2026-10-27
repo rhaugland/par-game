@@ -2,23 +2,24 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { GameState, Puzzle } from './engine/types';
 import { getScoreLabel, getMoves } from './engine/game';
 import { dayNumber, todaySeed } from './engine/seed';
-import { getStats, getTodayRecord } from './storage';
+import { getLocalStats, getTodayRecord } from './storage';
 
 interface Props {
   visible: boolean;
   gameState: GameState;
   puzzle: Puzzle;
   onClose: () => void;
+  isSignedIn: boolean;
 }
 
-export default function ScoreModal({ visible, gameState, puzzle, onClose }: Props) {
+export default function ScoreModal({ visible, gameState, puzzle, onClose, isSignedIn: _isSignedIn }: Props) {
   const [shared, setShared] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const [stats, setStats] = useState({ played: 0, avgScore: 0, bestScore: 0, streak: 0, parOrBetter: 0, birdies: 0, bogeys: 0, pars: 0 });
 
   useEffect(() => {
     if (visible) {
-      setStats(getStats());
+      setStats(getLocalStats());
       setShared(false);
     }
   }, [visible]);

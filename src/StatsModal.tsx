@@ -10,9 +10,10 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onViewHole: (day: number) => void;
+  isSignedIn: boolean;
 }
 
-export default function StatsModal({ visible, onClose, onViewHole }: Props) {
+export default function StatsModal({ visible, onClose, onViewHole, isSignedIn: _isSignedIn }: Props) {
   const [records, setRecords] = useState<Record<string, DailyRecord>>({});
   const [page, setPage] = useState(0);
 

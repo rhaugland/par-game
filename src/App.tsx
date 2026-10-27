@@ -1,13 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useAuth, useUser } from '@clerk/react';
 import { generatePuzzle } from './engine/generator';
 import { createGameState, addToPath, getMoves, getScoreLabel } from './engine/game';
+import { solvePath } from './engine/solver';
 import { todaySeed, dayNumber, seedForDay } from './engine/seed';
-import { Puzzle, GameState, TriviaQuestion } from './engine/types';
-import { saveRecord, getTodayRecord } from './storage';
+import { Puzzle, GameState, TriviaQuestion, PowerupType, POWERUP_COSTS, POWERUP_LIMITS } from './engine/types';
+import {
+  saveRecord, getTodayRecord, setLocalTickets, setLocalInventory,
+  getLocalTickets, getLocalInventory, syncRecordsFromApi,
+} from './storage';
+import { setAuthTokenGetter, buyPowerup as apiBuyPowerup, usePowerupApi, fetchProfile } from './lib/api';
 import Grid from './Grid';
 import ScoreModal from './ScoreModal';
 import StatsModal from './StatsModal';
 import TriviaModal from './TriviaModal';
+import ArcadeModal from './ArcadeModal';
+import LoginModal from './LoginModal';
 
 const DARK_KEY = 'par_dark_mode';
 
@@ -16,11 +24,67 @@ export default function App() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [showScore, setShowScore] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showArcade, setShowArcade] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   const [triviaTarget, setTriviaTarget] = useState<{ r: number; c: number; question: TriviaQuestion } | null>(null);
   const [dark, setDark] = useState(() => localStorage.getItem(DARK_KEY) === '1');
+  const [tickets, setTickets] = useState(0);
+  const [inventory, setInventory] = useState<Record<string, number>>({});
+
+  // Clerk auth
+  let isSignedIn = false;
+  let clerkUser: { firstName?: string | null } | null | undefined = null;
+  let getToken: (() => Promise<string | null>) | null = null;
+
+  try {
+    const auth = useAuth();
+    const user = useUser();
+    isSignedIn = !!auth.isSignedIn;
+    clerkUser = user.user;
+    getToken = auth.getToken;
+  } catch {
+    // Clerk not available
+  }
 
   const stateRef = useRef<GameState | null>(null);
   stateRef.current = gameState;
+
+  useEffect(() => {
+    if (getToken) setAuthTokenGetter(getToken);
+  }, [getToken]);
+
+  // Load tickets + inventory
+  useEffect(() => {
+    if (isSignedIn) {
+      fetchProfile().then(p => {
+        setTickets(p.tickets);
+        setInventory(p.inventory || {});
+      }).catch(() => {
+        setTickets(getLocalTickets());
+        setInventory(getLocalInventory());
+      });
+    } else {
+      setTickets(getLocalTickets());
+      setInventory(getLocalInventory());
+    }
+  }, [isSignedIn]);
+
+  // Sync records on login
+  useEffect(() => {
+    if (isSignedIn) {
+      syncRecordsFromApi().then(() => {
+        const seed = todaySeed();
+        const record = getTodayRecord(seed);
+        if (record?.completed && puzzle) {
+          setGameState({
+            path: record.path || [], drawing: false, completed: true,
+            score: record.score, unlockedCells: new Set(), failedCells: new Set(),
+            triviaPenalty: 0, powerupsUsed: record.powerups_used || {}, bombMode: false, parPath: null,
+          });
+        }
+      });
+    }
+  }, [isSignedIn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleDark = () => {
     setDark(d => {
@@ -37,7 +101,11 @@ export default function App() {
 
     const record = getTodayRecord(seed);
     if (record?.completed) {
-      setGameState({ path: record.path || [], drawing: false, completed: true, score: record.score, unlockedCells: new Set(), failedCells: new Set(), triviaPenalty: 0 });
+      setGameState({
+        path: record.path || [], drawing: false, completed: true,
+        score: record.score, unlockedCells: new Set(), failedCells: new Set(),
+        triviaPenalty: 0, powerupsUsed: record.powerups_used || {}, bombMode: false, parPath: null,
+      });
       setShowScore(true);
     } else {
       setGameState(createGameState(p));
@@ -49,20 +117,35 @@ export default function App() {
     const gs = stateRef.current;
     if (!gs || gs.completed) return;
 
+    // Bomb mode: tapping a wall destroys it
+    if (gs.bombMode) {
+      const cell = puzzle.grid[r][c];
+      if (cell.type === 1 /* Wall */) {
+        puzzle.grid[r][c] = { type: 0 /* Empty */ };
+        setGameState(s => s ? { ...s, bombMode: false } : s);
+      }
+      return;
+    }
+
     const next = addToPath(gs, r, c, puzzle);
     if (next !== gs) {
       setGameState(next);
       if (next.completed) {
         const moves = getMoves(next);
-        saveRecord({
+        const record = {
           date: todaySeed(), moves, par: puzzle.par,
           score: next.score ?? 0, completed: true,
-          path: next.path,
+          path: next.path, powerups_used: next.powerupsUsed,
+        };
+        saveRecord(record, isSignedIn).then(({ ticketsEarned }) => {
+          if (ticketsEarned > 0) {
+            setTickets(t => t + ticketsEarned);
+          }
         });
         setTimeout(() => setShowScore(true), 400);
       }
     }
-  }, [puzzle]);
+  }, [puzzle, isSignedIn]);
 
   const handleTriviaTap = useCallback((_r: number, _c: number, question: TriviaQuestion) => {
     setTriviaTarget({ r: _r, c: _c, question });
@@ -86,13 +169,112 @@ export default function App() {
     setTriviaTarget(null);
   }, [triviaTarget]);
 
+  const handleBuyPowerup = useCallback(async (type: PowerupType) => {
+    const cost = POWERUP_COSTS[type];
+    if (tickets < cost) return;
+
+    if (isSignedIn) {
+      try {
+        const result = await apiBuyPowerup(type);
+        setTickets(result.balance);
+        setInventory(result.inventory);
+      } catch (e) {
+        console.error('Buy error:', e);
+      }
+    } else {
+      const newBalance = tickets - cost;
+      const newInv = { ...inventory, [type]: (inventory[type] || 0) + 1 };
+      setLocalTickets(newBalance);
+      setLocalInventory(newInv);
+      setTickets(newBalance);
+      setInventory(newInv);
+    }
+  }, [tickets, inventory, isSignedIn]);
+
+  const handleUsePowerup = useCallback(async (type: PowerupType) => {
+    if (!puzzle || !gameState || gameState.completed) return;
+
+    const owned = inventory[type] || 0;
+    const used = gameState.powerupsUsed[type] || 0;
+    if (owned <= 0 || used >= POWERUP_LIMITS[type]) return;
+
+    // Deduct from inventory
+    let newInv: Record<string, number>;
+    if (isSignedIn) {
+      try {
+        const result = await usePowerupApi(type, todaySeed());
+        newInv = result.inventory;
+      } catch (e) {
+        console.error('Use error:', e);
+        return;
+      }
+    } else {
+      newInv = { ...inventory, [type]: owned - 1 };
+      setLocalInventory(newInv);
+    }
+    setInventory(newInv);
+
+    const newUsed = { ...gameState.powerupsUsed, [type]: used + 1 };
+
+    switch (type) {
+      case 'backspace': {
+        if (gameState.path.length <= 1) return;
+        setGameState(s => s ? { ...s, path: s.path.slice(0, -1), powerupsUsed: newUsed } : s);
+        break;
+      }
+      case 'trivia_retry': {
+        const failedArr = Array.from(gameState.failedCells);
+        if (failedArr.length === 0) return;
+        const lastFailed = failedArr[failedArr.length - 1];
+        const q = puzzle.triviaQuestions.get(lastFailed);
+        if (q) {
+          setGameState(s => {
+            if (!s) return s;
+            const newFailed = new Set(s.failedCells);
+            newFailed.delete(lastFailed);
+            return { ...s, failedCells: newFailed, triviaPenalty: Math.max(0, s.triviaPenalty - 1), powerupsUsed: newUsed };
+          });
+          const [rr, rc] = lastFailed.split(',').map(Number);
+          setTriviaTarget({ r: rr, c: rc, question: q });
+        }
+        break;
+      }
+      case 'bomb': {
+        setGameState(s => s ? { ...s, bombMode: true, powerupsUsed: newUsed } : s);
+        setShowArcade(false); // close modal so they can tap the wall
+        break;
+      }
+      case 'puzzle_retry': {
+        setGameState({
+          ...createGameState(puzzle),
+          unlockedCells: gameState.unlockedCells,
+          failedCells: gameState.failedCells,
+          triviaPenalty: gameState.triviaPenalty,
+          powerupsUsed: newUsed,
+        });
+        setShowArcade(false);
+        break;
+      }
+      case 'par_path': {
+        const optPath = solvePath(puzzle.grid, puzzle.start, puzzle.end, puzzle.rows, puzzle.cols);
+        setGameState(s => s ? { ...s, parPath: optPath, powerupsUsed: newUsed } : s);
+        setShowArcade(false);
+        break;
+      }
+    }
+  }, [puzzle, gameState, inventory, isSignedIn]);
+
   const handleViewHole = useCallback((day: number) => {
     const seed = seedForDay(day);
     const p = generatePuzzle(seed);
     setPuzzle(p);
     const record = getTodayRecord(seed);
     if (record?.completed) {
-      setGameState({ path: record.path || [], drawing: false, completed: true, score: record.score, unlockedCells: new Set(), failedCells: new Set(), triviaPenalty: 0 });
+      setGameState({
+        path: record.path || [], drawing: false, completed: true,
+        score: record.score, unlockedCells: new Set(), failedCells: new Set(),
+        triviaPenalty: 0, powerupsUsed: record.powerups_used || {}, bombMode: false, parPath: null,
+      });
     } else {
       setGameState(createGameState(p));
     }
@@ -104,14 +286,12 @@ export default function App() {
 
   if (!puzzle || !gameState) return null;
 
-  // For completed games loaded from storage, use stored record values
   const todayRecord = getTodayRecord(todaySeed());
   const moves = gameState.completed && todayRecord ? todayRecord.moves : getMoves(gameState);
   const penalty = gameState.triviaPenalty;
   const displayScore = gameState.completed && todayRecord ? todayRecord.score : (moves + penalty) - puzzle.par;
   const diff = displayScore;
 
-  // Theme colors
   const t = {
     bg: dark ? '#121212' : '#fff',
     text: dark ? '#e0e0e0' : '#1a1a2e',
@@ -127,11 +307,21 @@ export default function App() {
       {/* Header */}
       <div style={s.headerRow}>
         <div style={s.headerLeft}>
-          <button style={s.iconBtn} onClick={() => {/* TODO: profile */}}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.icon} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
+          <button style={s.iconBtn} onClick={() => isSignedIn ? undefined : setShowLogin(true)}>
+            {isSignedIn && clerkUser ? (
+              <div style={{
+                width: 28, height: 28, borderRadius: 14,
+                background: '#4caf50', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 13, fontWeight: 700, color: '#fff',
+              }}>
+                {(clerkUser.firstName?.[0] || 'P').toUpperCase()}
+              </div>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.icon} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            )}
           </button>
           <button style={s.iconBtn} onClick={toggleDark}>
             {dark ? (
@@ -154,6 +344,21 @@ export default function App() {
           <div style={{ ...s.day, color: t.sub }}>#{dayNumber()}</div>
         </div>
         <div style={s.headerRight}>
+          <div style={{
+            fontSize: 13, fontWeight: 600, color: t.text,
+            marginRight: 4,
+          }}>
+            🎟{tickets}
+          </div>
+          <button style={s.iconBtn} onClick={() => setShowArcade(true)}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.icon} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="6" width="20" height="12" rx="2" />
+              <line x1="6" y1="12" x2="10" y2="12" />
+              <line x1="8" y1="10" x2="8" y2="14" />
+              <circle cx="16" cy="10" r="1" fill={t.icon} />
+              <circle cx="18" cy="12" r="1" fill={t.icon} />
+            </svg>
+          </button>
           <button style={s.iconBtn} onClick={() => setShowStats(true)}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.icon} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="12" width="4" height="9" rx="1" />
@@ -183,8 +388,11 @@ export default function App() {
         </div>
       </div>
 
-      {!gameState.completed && moves === 0 && (
+      {!gameState.completed && moves === 0 && !gameState.bombMode && (
         <div style={{ ...s.hint, color: t.sub }}>Draw a path from the green dot to the goal</div>
+      )}
+      {gameState.bombMode && (
+        <div style={{ ...s.hint, color: '#ff9800', fontWeight: 600 }}>💣 Tap a wall to destroy it</div>
       )}
       {gameState.completed && (
         <div style={{ ...s.hint, color: t.sub }}>
@@ -247,11 +455,33 @@ export default function App() {
         </span>
       </div>
 
+      {!isSignedIn && (
+        <div style={{ ...s.loginHint, color: t.sub2 }}>
+          <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setShowLogin(true)}>
+            Sign in
+          </span>
+          {' '}to save progress & earn tickets
+        </div>
+      )}
+
       {triviaTarget && (
         <TriviaModal question={triviaTarget.question} onResult={handleTriviaResult} />
       )}
-      <ScoreModal visible={showScore} gameState={gameState} puzzle={puzzle} onClose={() => setShowScore(false)} />
-      <StatsModal visible={showStats} onClose={() => setShowStats(false)} onViewHole={handleViewHole} />
+      <ScoreModal visible={showScore} gameState={gameState} puzzle={puzzle} onClose={() => setShowScore(false)} isSignedIn={isSignedIn} />
+      <StatsModal visible={showStats} onClose={() => setShowStats(false)} onViewHole={handleViewHole} isSignedIn={isSignedIn} />
+      <ArcadeModal
+        visible={showArcade}
+        onClose={() => setShowArcade(false)}
+        tickets={tickets}
+        inventory={inventory}
+        powerupsUsed={gameState.powerupsUsed}
+        completed={gameState.completed}
+        hasFailed={gameState.failedCells.size > 0}
+        onBuy={handleBuyPowerup}
+        onUse={handleUsePowerup}
+        dark={dark}
+      />
+      <LoginModal visible={showLogin} onClose={() => setShowLogin(false)} />
     </div>
   );
 }
@@ -269,7 +499,7 @@ const s: Record<string, React.CSSProperties> = {
   },
   headerLeft: { display: 'flex', gap: 4, minWidth: 72 },
   headerCenter: { textAlign: 'center', flex: 1 },
-  headerRight: { display: 'flex', justifyContent: 'flex-end', minWidth: 72 },
+  headerRight: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', minWidth: 100 },
   iconBtn: {
     background: 'none', border: 'none', cursor: 'pointer',
     padding: 8, borderRadius: 8, WebkitTapHighlightColor: 'transparent',
@@ -287,5 +517,8 @@ const s: Record<string, React.CSSProperties> = {
   legend: {
     marginTop: 16, padding: '0 20px',
     textAlign: 'center', lineHeight: 1.8,
+  },
+  loginHint: {
+    fontSize: 13, marginTop: 12, marginBottom: 20,
   },
 };

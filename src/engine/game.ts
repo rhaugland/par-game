@@ -9,6 +9,9 @@ export function createGameState(puzzle: Puzzle): GameState {
     unlockedCells: new Set(),
     failedCells: new Set(),
     triviaPenalty: 0,
+    powerupsUsed: {},
+    bombMode: false,
+    parPath: null,
   };
 }
 
@@ -67,6 +70,9 @@ export function addToPath(
     unlockedCells: state.unlockedCells,
     failedCells: state.failedCells,
     triviaPenalty: state.triviaPenalty,
+    powerupsUsed: state.powerupsUsed,
+    bombMode: false,
+    parPath: state.parPath,
   };
 }
 

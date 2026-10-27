@@ -231,6 +231,15 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
                 </text>
               </>
             )}
+            {/* Par path ghost line */}
+            {gameState.parPath && gameState.parPath.length > 1 && (
+              <polyline
+                points={gameState.parPath.map(([r, c]) => `${c * cellSize + cellSize / 2},${r * cellSize + cellSize / 2}`).join(' ')}
+                fill="none" stroke="rgba(33,150,243,0.35)"
+                strokeWidth={strokeWidth * 0.4} strokeLinecap="round" strokeLinejoin="round"
+                strokeDasharray="6,4"
+              />
+            )}
           </g>
         </svg>
       )}
