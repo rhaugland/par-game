@@ -193,10 +193,11 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
             >
               {isTrivia && !isUnlocked && !isFailed && (
                 <span style={{
-                  color: '#fff', fontSize: Math.max(cellSize * 0.4, 14),
+                  color: '#fff', fontSize: Math.max(cellSize * 0.32, 11),
                   fontWeight: 700, lineHeight: 1, opacity: 0.9,
+                  letterSpacing: -0.5,
                 }}>
-                  ?
+                  {triviaQ ? { entertainment: 'E', world: 'W', history: 'H', sports: 'S', science: 'Sc' }[triviaQ.category] : ''}?
                 </span>
               )}
               {isTrivia && isFailed && (
