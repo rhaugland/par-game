@@ -3,10 +3,20 @@ export enum CellType {
   Wall = 1,
   Start = 2,
   End = 3,
+  TriviaWall = 4,
 }
 
 export interface Cell {
   type: CellType;
+}
+
+export type TriviaCategory = 'entertainment' | 'world' | 'history' | 'sports' | 'science';
+
+export interface TriviaQuestion {
+  category: TriviaCategory;
+  question: string;
+  choices: string[];
+  answer: number; // index into choices
 }
 
 export interface Puzzle {
@@ -16,6 +26,7 @@ export interface Puzzle {
   start: [number, number];
   end: [number, number];
   par: number;
+  triviaQuestions: Map<string, TriviaQuestion>; // "r,c" -> question
 }
 
 export interface GameState {
@@ -23,6 +34,7 @@ export interface GameState {
   drawing: boolean;
   completed: boolean;
   score: number | null;
+  unlockedCells: Set<string>; // "r,c" of trivia walls answered correctly
 }
 
 export interface DailyRecord {

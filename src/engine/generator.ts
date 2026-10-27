@@ -1,6 +1,7 @@
-import { Cell, CellType, Puzzle } from './types';
+import { Cell, CellType, Puzzle, TriviaQuestion } from './types';
 import { createRng, todaySeed } from './seed';
-import { solve } from './solver';
+import { solve, solveWithOpenCells } from './solver';
+import { pickTriviaQuestions } from './trivia';
 
 interface GenConfig {
   rows: number;
@@ -31,16 +32,16 @@ export function generatePuzzle(seed?: string): Puzzle {
   // Try maze-carved puzzles first (best quality)
   for (let attempt = 0; attempt < 300; attempt++) {
     const puzzle = generateMazePuzzle(rng, config);
-    if (puzzle) return puzzle;
+    if (puzzle) return placeTriviaWalls(puzzle, rng);
   }
 
   // Fallback to corridor-based
   for (let attempt = 0; attempt < 300; attempt++) {
     const puzzle = generateCorridorPuzzle(rng, config);
-    if (puzzle) return puzzle;
+    if (puzzle) return placeTriviaWalls(puzzle, rng);
   }
 
-  return fallbackPuzzle(config, rng);
+  return placeTriviaWalls(fallbackPuzzle(config, rng), rng);
 }
 
 // Start with all walls, carve paths — creates natural maze corridors
@@ -139,7 +140,7 @@ function generateMazePuzzle(rng: () => number, config: GenConfig): Puzzle | null
   const ratio = par / Math.max(manhattan, 1);
 
   if (par >= minPar && par <= maxPar && ratio >= minRatio) {
-    return { grid, rows, cols, start, end, par };
+    return { grid, rows, cols, start, end, par, triviaQuestions: new Map() };
   }
 
   return null;
@@ -214,7 +215,7 @@ function generateCorridorPuzzle(rng: () => number, config: GenConfig): Puzzle | 
   const ratio = par / Math.max(manhattan, 1);
 
   if (par >= minPar && par <= maxPar && ratio >= minRatio) {
-    return { grid, rows, cols, start, end, par };
+    return { grid, rows, cols, start, end, par, triviaQuestions: new Map() };
   }
 
   return null;
@@ -263,5 +264,65 @@ function fallbackPuzzle(config: GenConfig, _rng: () => number): Puzzle {
   }
 
   const par = solve(grid, start, end, rows, cols) || (rows + cols - 2);
-  return { grid, rows, cols, start, end, par };
+  return { grid, rows, cols, start, end, par, triviaQuestions: new Map() };
+}
+
+// Find wall cells that, if removed, would create a shortcut below par.
+// Convert 2-3 of them to trivia walls and assign questions.
+function placeTriviaWalls(puzzle: Puzzle, rng: () => number): Puzzle {
+  const { grid, rows, cols, start, end, par } = puzzle;
+  const dirs: [number, number][] = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+  // Find wall cells adjacent to at least 2 non-wall cells (potential shortcuts)
+  const candidates: [number, number, number][] = []; // [r, c, newPar]
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (grid[r][c].type !== CellType.Wall) continue;
+      // Don't use edge cells — they look weird
+      if (r === 0 || r === rows - 1 || c === 0 || c === cols - 1) continue;
+
+      // Count adjacent open cells
+      let openNeighbors = 0;
+      for (const [dr, dc] of dirs) {
+        const nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+          const t = grid[nr][nc].type;
+          if (t !== CellType.Wall) openNeighbors++;
+        }
+      }
+      if (openNeighbors < 2) continue;
+
+      // Test: if this wall were open, does it create a shorter path?
+      const openSet = new Set([`${r},${c}`]);
+      const newPar = solveWithOpenCells(grid, start, end, rows, cols, openSet);
+      if (newPar !== null && newPar < par) {
+        candidates.push([r, c, newPar]);
+      }
+    }
+  }
+
+  if (candidates.length === 0) return puzzle;
+
+  // Sort by savings (biggest shortcut first), then shuffle within equal savings
+  candidates.sort((a, b) => {
+    const diff = a[2] - b[2];
+    return diff !== 0 ? diff : rng() - 0.5;
+  });
+
+  // Pick 2-3 trivia walls (not all — that would make it too easy)
+  const count = Math.min(candidates.length, rng() < 0.5 ? 2 : 3);
+  const selected = candidates.slice(0, count);
+
+  // Get trivia questions
+  const questions = pickTriviaQuestions(rng, count);
+  const triviaQuestions = new Map<string, TriviaQuestion>();
+
+  for (let i = 0; i < selected.length; i++) {
+    const [r, c] = selected[i];
+    grid[r][c] = { type: CellType.TriviaWall };
+    triviaQuestions.set(`${r},${c}`, questions[i]);
+  }
+
+  return { ...puzzle, triviaQuestions };
 }

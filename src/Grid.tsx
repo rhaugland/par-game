@@ -1,5 +1,6 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
-import { Puzzle, GameState, CellType } from './engine/types';
+import { Puzzle, GameState, CellType, TriviaQuestion } from './engine/types';
+import { getCategoryIcon } from './engine/trivia';
 
 const GRID_MARGIN = 24;
 const MAX_GRID = 420;
@@ -10,9 +11,10 @@ interface GridProps {
   onCellEnter: (r: number, c: number) => void;
   onDrawStart: () => void;
   onDrawEnd: () => void;
+  onTriviaTap: (r: number, c: number, question: TriviaQuestion) => void;
 }
 
-export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDrawEnd }: GridProps) {
+export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDrawEnd, onTriviaTap }: GridProps) {
   const [width, setWidth] = useState(window.innerWidth);
   useEffect(() => {
     const h = () => setWidth(window.innerWidth);
@@ -31,8 +33,8 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
   const drawing = useRef(false);
   const lastCell = useRef('');
 
-  const cbRef = useRef({ onCellEnter, onDrawStart, onDrawEnd });
-  cbRef.current = { onCellEnter, onDrawStart, onDrawEnd };
+  const cbRef = useRef({ onCellEnter, onDrawStart, onDrawEnd, onTriviaTap });
+  cbRef.current = { onCellEnter, onDrawStart, onDrawEnd, onTriviaTap };
 
   const cellSizeRef = useRef(cellSize);
   cellSizeRef.current = cellSize;
@@ -145,26 +147,54 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
           const isStart = puzzle.start[0] === r && puzzle.start[1] === c;
           const isEnd = puzzle.end[0] === r && puzzle.end[1] === c;
           const isWall = cell.type === CellType.Wall;
+          const isTrivia = cell.type === CellType.TriviaWall;
+          const isUnlocked = gameState.unlockedCells.has(`${r},${c}`);
           const inPath = pathSet.has(`${r},${c}`);
+          const triviaQ = puzzle.triviaQuestions.get(`${r},${c}`);
 
           let bg = '#f0f1f3';
           if (isWall) bg = '#1a1a2e';
+          if (isTrivia && !isUnlocked) bg = '#2d1b69';
+          if (isTrivia && isUnlocked) bg = '#f0f1f3';
+
+          const isTappable = isTrivia && !isUnlocked && !gameState.completed;
 
           return (
             <div
               key={`${r}-${c}`}
+              onClick={isTappable && triviaQ ? (e) => {
+                e.stopPropagation();
+                cbRef.current.onTriviaTap(r, c, triviaQ);
+              } : undefined}
               style={{
                 position: 'absolute',
                 left: c * cellSize, top: r * cellSize,
                 width: cellSize, height: cellSize,
                 backgroundColor: bg,
-                borderRadius: isWall ? 4 : 0,
+                borderRadius: (isWall || (isTrivia && !isUnlocked)) ? 4 : 0,
                 display: 'flex', justifyContent: 'center', alignItems: 'center',
                 boxSizing: 'border-box',
-                border: isWall ? 'none' : '1px solid rgba(0,0,0,0.06)',
-                pointerEvents: 'none',
+                border: (isWall || (isTrivia && !isUnlocked)) ? 'none' : '1px solid rgba(0,0,0,0.06)',
+                pointerEvents: isTappable ? 'auto' : 'none',
+                cursor: isTappable ? 'pointer' : 'default',
+                overflow: 'hidden',
               }}
             >
+              {isTrivia && !isUnlocked && (
+                <div style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+                }}>
+                  <span style={{ fontSize: Math.max(cellSize * 0.35, 12), lineHeight: 1 }}>
+                    {triviaQ ? getCategoryIcon(triviaQ.category) : '?'}
+                  </span>
+                  <span style={{
+                    color: '#b388ff', fontSize: Math.max(cellSize * 0.18, 7),
+                    fontWeight: 800, letterSpacing: 0.5,
+                  }}>
+                    ?
+                  </span>
+                </div>
+              )}
               {isStart && !inPath && (
                 <div style={{
                   width: 22, height: 22, borderRadius: 11,

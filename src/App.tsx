@@ -2,17 +2,19 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { generatePuzzle } from './engine/generator';
 import { createGameState, addToPath, getMoves } from './engine/game';
 import { todaySeed, dayNumber } from './engine/seed';
-import { Puzzle, GameState } from './engine/types';
+import { Puzzle, GameState, TriviaQuestion } from './engine/types';
 import { saveRecord, getTodayRecord } from './storage';
 import Grid from './Grid';
 import ScoreModal from './ScoreModal';
 import StatsModal from './StatsModal';
+import TriviaModal from './TriviaModal';
 
 export default function App() {
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [showScore, setShowScore] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [triviaTarget, setTriviaTarget] = useState<{ r: number; c: number; question: TriviaQuestion } | null>(null);
 
   const stateRef = useRef<GameState | null>(null);
   stateRef.current = gameState;
@@ -24,7 +26,7 @@ export default function App() {
 
     const record = getTodayRecord(seed);
     if (record?.completed) {
-      setGameState({ path: [], drawing: false, completed: true, score: record.score });
+      setGameState({ path: [], drawing: false, completed: true, score: record.score, unlockedCells: new Set() });
       setShowScore(true);
     } else {
       setGameState(createGameState(p));
@@ -49,6 +51,22 @@ export default function App() {
       }
     }
   }, [puzzle]);
+
+  const handleTriviaTap = useCallback((_r: number, _c: number, question: TriviaQuestion) => {
+    setTriviaTarget({ r: _r, c: _c, question });
+  }, []);
+
+  const handleTriviaResult = useCallback((correct: boolean) => {
+    if (correct && triviaTarget) {
+      setGameState(s => {
+        if (!s) return s;
+        const newUnlocked = new Set(s.unlockedCells);
+        newUnlocked.add(`${triviaTarget.r},${triviaTarget.c}`);
+        return { ...s, unlockedCells: newUnlocked };
+      });
+    }
+    setTriviaTarget(null);
+  }, [triviaTarget]);
 
   const handleReset = useCallback(() => {
     if (!puzzle) return;
@@ -88,7 +106,12 @@ export default function App() {
       </div>
 
       {!gameState.completed && moves === 0 && (
-        <div style={styles.hint}>Draw a path from the green dot to the goal</div>
+        <div style={styles.hint}>
+          Draw a path from the green dot to the goal
+          {puzzle.triviaQuestions.size > 0 && (
+            <div style={{ marginTop: 4, fontSize: 12 }}>Tap purple blocks to unlock shortcuts</div>
+          )}
+        </div>
       )}
 
       <div style={styles.gridWrap}>
@@ -98,6 +121,7 @@ export default function App() {
           onCellEnter={handleCellEnter}
           onDrawStart={() => setGameState(s => s ? { ...s, drawing: true } : s)}
           onDrawEnd={() => setGameState(s => s ? { ...s, drawing: false } : s)}
+          onTriviaTap={handleTriviaTap}
         />
       </div>
 
@@ -107,6 +131,9 @@ export default function App() {
 
       <button style={styles.statsLink} onClick={() => setShowStats(true)}>View Stats</button>
 
+      {triviaTarget && (
+        <TriviaModal question={triviaTarget.question} onResult={handleTriviaResult} />
+      )}
       <ScoreModal visible={showScore} gameState={gameState} puzzle={puzzle} onReset={handleReset} onClose={() => setShowScore(false)} />
       <StatsModal visible={showStats} onClose={() => setShowStats(false)} />
     </div>

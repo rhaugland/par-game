@@ -6,6 +6,7 @@ export function createGameState(puzzle: Puzzle): GameState {
     drawing: false,
     completed: false,
     score: null,
+    unlockedCells: new Set(),
   };
 }
 
@@ -17,10 +18,13 @@ export function canMoveTo(
   r: number,
   c: number,
   puzzle: Puzzle,
-  path: [number, number][]
+  path: [number, number][],
+  unlockedCells?: Set<string>
 ): boolean {
   if (r < 0 || r >= puzzle.rows || c < 0 || c >= puzzle.cols) return false;
-  if (puzzle.grid[r][c].type === CellType.Wall) return false;
+  const cellType = puzzle.grid[r][c].type;
+  if (cellType === CellType.Wall) return false;
+  if (cellType === CellType.TriviaWall && !(unlockedCells?.has(`${r},${c}`))) return false;
   // Can't revisit cells already in the path
   if (path.some(([pr, pc]) => pr === r && pc === c)) return false;
   return true;
@@ -46,7 +50,7 @@ export function addToPath(
   }
 
   if (!isAdjacent(last, [r, c])) return state;
-  if (!canMoveTo(r, c, puzzle, state.path)) return state;
+  if (!canMoveTo(r, c, puzzle, state.path, state.unlockedCells)) return state;
 
   const newPath: [number, number][] = [...state.path, [r, c]];
   const completed = r === puzzle.end[0] && c === puzzle.end[1];
@@ -58,6 +62,7 @@ export function addToPath(
     drawing: !completed,
     completed,
     score,
+    unlockedCells: state.unlockedCells,
   };
 }
 
@@ -99,8 +104,8 @@ export function generateShareCard(
         row += '🟢';
       } else if (r === puzzle.end[0] && c === puzzle.end[1]) {
         row += '🏁';
-      } else if (cell.type === CellType.Wall) {
-        row += '⬛';
+      } else if (cell.type === CellType.Wall || cell.type === CellType.TriviaWall) {
+        row += cell.type === CellType.TriviaWall && isPath ? '❓' : '⬛';
       } else if (isPath) {
         row += '🟩';
       } else {
