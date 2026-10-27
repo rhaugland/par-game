@@ -43,7 +43,7 @@ export function getStats() {
   const streak = getStreak();
 
   if (completed.length === 0) {
-    return { played: 0, avgScore: 0, bestScore: 0, streak: 0, parOrBetter: 0 };
+    return { played: 0, avgScore: 0, bestScore: 0, streak: 0, parOrBetter: 0, birdies: 0, bogeys: 0, pars: 0 };
   }
 
   const scores = completed.map(r => r.score);
@@ -53,5 +53,8 @@ export function getStats() {
     bestScore: Math.min(...scores),
     streak,
     parOrBetter: scores.filter(s => s <= 0).length,
+    birdies: scores.filter(s => s < 0).length,
+    bogeys: scores.filter(s => s > 0).length,
+    pars: scores.filter(s => s === 0).length,
   };
 }

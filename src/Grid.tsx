@@ -29,7 +29,7 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
   const gridH = cellSize * puzzle.rows;
 
   const gridRef = useRef<HTMLDivElement>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const lastCell = useRef('');
 
@@ -56,34 +56,29 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
     return null;
   }, [puzzle.rows, puzzle.cols]);
 
-  // Check if a cell is a tappable trivia wall
-  const checkTriviaTap = useCallback((row: number, col: number): boolean => {
-    const p = puzzleRef.current;
-    const gs = gameStateRef.current;
-    const cell = p.grid[row][col];
-    if (cell.type !== CellType.TriviaWall) return false;
-    if (gs.completed) return false;
-    const key = `${row},${col}`;
-    if (gs.unlockedCells.has(key) || gs.failedCells.has(key)) return false;
-    const q = p.triviaQuestions.get(key);
-    if (!q) return false;
-    cbRef.current.onTriviaTap(row, col, q);
-    return true;
-  }, []);
-
-  // Attach touch/mouse directly to the overlay div via ref
+  // All touch/mouse via canvas element (canvas ALWAYS receives touch on Safari)
   useEffect(() => {
-    const overlay = overlayRef.current;
-    if (!overlay) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
     const startDraw = (x: number, y: number) => {
       const c = getCell(x, y);
       if (!c) return;
-      // Check trivia tap first
-      if (checkTriviaTap(c[0], c[1])) return;
+
+      // Check trivia tap
+      const p = puzzleRef.current;
+      const gs = gameStateRef.current;
+      const cell = p.grid[c[0]][c[1]];
+      const key = `${c[0]},${c[1]}`;
+      if (cell.type === CellType.TriviaWall && !gs.completed &&
+          !gs.unlockedCells.has(key) && !gs.failedCells.has(key)) {
+        const q = p.triviaQuestions.get(key);
+        if (q) { cbRef.current.onTriviaTap(c[0], c[1], q); return; }
+      }
+
       drawing.current = true;
       cbRef.current.onDrawStart();
-      lastCell.current = `${c[0]},${c[1]}`;
+      lastCell.current = key;
       cbRef.current.onCellEnter(c[0], c[1]);
     };
 
@@ -122,36 +117,28 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
       e.preventDefault();
       endDraw();
     };
-    const md = (e: MouseEvent) => {
-      e.preventDefault();
-      startDraw(e.clientX, e.clientY);
-    };
-    const mm = (e: MouseEvent) => {
-      moveDraw(e.clientX, e.clientY);
-    };
-    const mu = () => {
-      endDraw();
-    };
+    const md = (e: MouseEvent) => { startDraw(e.clientX, e.clientY); };
+    const mm = (e: MouseEvent) => { moveDraw(e.clientX, e.clientY); };
+    const mu = () => { endDraw(); };
 
-    overlay.addEventListener('touchstart', ts, { passive: false });
-    overlay.addEventListener('touchmove', tm, { passive: false });
-    overlay.addEventListener('touchend', te, { passive: false });
-    overlay.addEventListener('touchcancel', te);
-    overlay.addEventListener('mousedown', md);
-    // Mouse move/up on document so dragging outside the grid still works
+    canvas.addEventListener('touchstart', ts, { passive: false });
+    canvas.addEventListener('touchmove', tm, { passive: false });
+    canvas.addEventListener('touchend', te, { passive: false });
+    canvas.addEventListener('touchcancel', te);
+    canvas.addEventListener('mousedown', md);
     document.addEventListener('mousemove', mm);
     document.addEventListener('mouseup', mu);
 
     return () => {
-      overlay.removeEventListener('touchstart', ts);
-      overlay.removeEventListener('touchmove', tm);
-      overlay.removeEventListener('touchend', te);
-      overlay.removeEventListener('touchcancel', te);
-      overlay.removeEventListener('mousedown', md);
+      canvas.removeEventListener('touchstart', ts);
+      canvas.removeEventListener('touchmove', tm);
+      canvas.removeEventListener('touchend', te);
+      canvas.removeEventListener('touchcancel', te);
+      canvas.removeEventListener('mousedown', md);
       document.removeEventListener('mousemove', mm);
       document.removeEventListener('mouseup', mu);
     };
-  }, [getCell, checkTriviaTap]);
+  }, [getCell]);
 
   const pathSet = new Set(gameState.path.map(([r, c]) => `${r},${c}`));
   const head = gameState.path[gameState.path.length - 1];
@@ -169,8 +156,7 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
         width: gridW, height: gridH,
         borderRadius: 12, overflow: 'hidden',
         backgroundColor: '#e2e5e9', position: 'relative',
-        touchAction: 'none', userSelect: 'none',
-        WebkitUserSelect: 'none', cursor: 'pointer',
+        userSelect: 'none', WebkitUserSelect: 'none',
       }}
     >
       {/* Grid cells */}
@@ -194,7 +180,7 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
 
           return (
             <div
-              key={`${r}-${c}`}
+              key={cellKey}
               style={{
                 position: 'absolute',
                 left: c * cellSize, top: r * cellSize,
@@ -242,13 +228,14 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
         })
       )}
 
-      {/* Paint stripe SVG overlay */}
+      {/* Paint stripe SVG — all pointer events disabled via SVG attribute */}
       {pathPoints.length > 0 && (
         <svg
-          style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+          style={{ position: 'absolute', inset: 0 }}
           width={gridW}
           height={gridH}
           viewBox={`0 0 ${gridW} ${gridH}`}
+          pointerEvents="none"
         >
           <defs>
             <linearGradient id="paint-grad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -261,87 +248,43 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
             </filter>
           </defs>
 
-          {/* Shadow */}
           <polyline
             points={pathPoints.map(p => `${p.x},${p.y}`).join(' ')}
-            fill="none"
-            stroke="rgba(0,0,0,0.08)"
-            strokeWidth={strokeWidth + 4}
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            fill="none" stroke="rgba(0,0,0,0.08)"
+            strokeWidth={strokeWidth + 4} strokeLinecap="round" strokeLinejoin="round"
           />
-
-          {/* Main paint stripe */}
           <polyline
             points={pathPoints.map(p => `${p.x},${p.y}`).join(' ')}
-            fill="none"
-            stroke="url(#paint-grad)"
-            strokeWidth={strokeWidth}
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            fill="none" stroke="url(#paint-grad)"
+            strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
             filter="url(#paint-texture)"
           />
-
-          {/* Glossy highlight */}
           <polyline
             points={pathPoints.map(p => `${p.x},${p.y - strokeWidth * 0.15}`).join(' ')}
-            fill="none"
-            stroke="rgba(255,255,255,0.25)"
-            strokeWidth={strokeWidth * 0.3}
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            fill="none" stroke="rgba(255,255,255,0.25)"
+            strokeWidth={strokeWidth * 0.3} strokeLinecap="round" strokeLinejoin="round"
           />
 
-          {/* Head dot */}
           {head && (
             <>
-              <circle
-                cx={head[1] * cellSize + cellSize / 2}
-                cy={head[0] * cellSize + cellSize / 2}
-                r={strokeWidth * 0.42}
-                fill="#2e7d32"
-                opacity={0.3}
-              />
-              <circle
-                cx={head[1] * cellSize + cellSize / 2}
-                cy={head[0] * cellSize + cellSize / 2}
-                r={strokeWidth * 0.32}
-                fill="#fff"
-                opacity={0.9}
-              />
+              <circle cx={head[1] * cellSize + cellSize / 2} cy={head[0] * cellSize + cellSize / 2}
+                r={strokeWidth * 0.42} fill="#2e7d32" opacity={0.3} />
+              <circle cx={head[1] * cellSize + cellSize / 2} cy={head[0] * cellSize + cellSize / 2}
+                r={strokeWidth * 0.32} fill="#fff" opacity={0.9} />
             </>
           )}
 
-          {/* Start circle on stripe */}
           {gameState.path.length > 0 && (
-            <circle
-              cx={puzzle.start[1] * cellSize + cellSize / 2}
-              cy={puzzle.start[0] * cellSize + cellSize / 2}
-              r={strokeWidth * 0.35}
-              fill="#2e7d32"
-              stroke="#fff"
-              strokeWidth={2}
-            />
+            <circle cx={puzzle.start[1] * cellSize + cellSize / 2} cy={puzzle.start[0] * cellSize + cellSize / 2}
+              r={strokeWidth * 0.35} fill="#2e7d32" stroke="#fff" strokeWidth={2} />
           )}
 
-          {/* Goal on top if reached */}
           {gameState.completed && (
             <>
-              <circle
-                cx={puzzle.end[1] * cellSize + cellSize / 2}
-                cy={puzzle.end[0] * cellSize + cellSize / 2}
-                r={strokeWidth * 0.4}
-                fill="#4caf50"
-              />
-              <text
-                x={puzzle.end[1] * cellSize + cellSize / 2}
-                y={puzzle.end[0] * cellSize + cellSize / 2 + 3}
-                textAnchor="middle"
-                fill="#fff"
-                fontSize={8}
-                fontWeight={800}
-                letterSpacing={1}
-              >
+              <circle cx={puzzle.end[1] * cellSize + cellSize / 2} cy={puzzle.end[0] * cellSize + cellSize / 2}
+                r={strokeWidth * 0.4} fill="#4caf50" />
+              <text x={puzzle.end[1] * cellSize + cellSize / 2} y={puzzle.end[0] * cellSize + cellSize / 2 + 3}
+                textAnchor="middle" fill="#fff" fontSize={8} fontWeight={800} letterSpacing={1}>
                 GOAL
               </text>
             </>
@@ -349,16 +292,14 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
         </svg>
       )}
 
-      {/* Touch-capture overlay — sits on top of everything.
-          Safari needs a non-transparent background to register touch events. */}
-      <div
-        ref={overlayRef}
+      {/* Canvas touch surface — canvas ALWAYS receives touch events on Safari */}
+      <canvas
+        ref={canvasRef}
+        width={gridW}
+        height={gridH}
         style={{
-          position: 'absolute', inset: 0, zIndex: 10,
-          touchAction: 'none',
-          backgroundColor: 'rgba(0,0,0,0.001)',
-          WebkitTapHighlightColor: 'transparent',
-          cursor: 'pointer',
+          position: 'absolute', inset: 0, zIndex: 20,
+          touchAction: 'none', cursor: 'pointer',
         }}
       />
     </div>
