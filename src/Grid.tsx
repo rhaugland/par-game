@@ -11,9 +11,10 @@ interface GridProps {
   onDrawStart: () => void;
   onDrawEnd: () => void;
   onTriviaTap: (r: number, c: number, question: TriviaQuestion) => void;
+  disabled?: boolean;
 }
 
-export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDrawEnd, onTriviaTap }: GridProps) {
+export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDrawEnd, onTriviaTap, disabled }: GridProps) {
   const [width, setWidth] = useState(window.innerWidth);
   useEffect(() => {
     const h = () => setWidth(window.innerWidth);
@@ -34,6 +35,9 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
 
   const cbRef = useRef({ onCellEnter, onDrawStart, onDrawEnd, onTriviaTap });
   cbRef.current = { onCellEnter, onDrawStart, onDrawEnd, onTriviaTap };
+
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
 
   const cellSizeRef = useRef(cellSize);
   cellSizeRef.current = cellSize;
@@ -77,17 +81,10 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
 
   // Attach to document so SVG overlay can't intercept
   useEffect(() => {
-    // Check that the point isn't covered by a modal overlay
-    const isOnGrid = (x: number, y: number): boolean => {
-      const el = document.elementFromPoint(x, y);
-      if (!el || !gridRef.current) return false;
-      return gridRef.current === el || gridRef.current.contains(el);
-    };
-
     const ts = (e: TouchEvent) => {
+      if (disabledRef.current) return;
       const t = e.touches[0];
       if (!t) return;
-      if (!isOnGrid(t.clientX, t.clientY)) return;
       const c = getCell(t.clientX, t.clientY);
       if (c) { e.preventDefault(); startDraw(t.clientX, t.clientY); }
     };
@@ -103,7 +100,7 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
       endDraw();
     };
     const md = (e: MouseEvent) => {
-      if (!isOnGrid(e.clientX, e.clientY)) return;
+      if (disabledRef.current) return;
       const c = getCell(e.clientX, e.clientY);
       if (c) { e.preventDefault(); startDraw(e.clientX, e.clientY); }
     };

@@ -123,12 +123,7 @@ export default function App() {
       </div>
 
       {!gameState.completed && moves === 0 && (
-        <div style={styles.hint}>
-          Draw a path from the green dot to the goal
-          {puzzle.triviaQuestions.size > 0 && (
-            <div style={{ marginTop: 4, fontSize: 12 }}>Tap purple blocks to unlock shortcuts</div>
-          )}
-        </div>
+        <div style={styles.hint}>Draw a path from the green dot to the goal</div>
       )}
 
       <div style={styles.gridWrap}>
@@ -139,10 +134,14 @@ export default function App() {
           onDrawStart={() => setGameState(s => s ? { ...s, drawing: true } : s)}
           onDrawEnd={() => setGameState(s => s ? { ...s, drawing: false } : s)}
           onTriviaTap={handleTriviaTap}
+          disabled={showScore || showStats || !!triviaTarget}
         />
       </div>
 
       <button style={styles.statsLink} onClick={() => setShowStats(true)}>View Stats</button>
+      <div style={styles.triviaDesc}>
+        Tap <span style={{ fontWeight: 600, color: '#1a1a2e' }}>?</span> blocks for trivia — answer right to unlock a shortcut, wrong adds +1
+      </div>
 
       {triviaTarget && (
         <TriviaModal question={triviaTarget.question} onResult={handleTriviaResult} />
@@ -171,5 +170,9 @@ const styles: Record<string, React.CSSProperties> = {
   statsLink: {
     marginTop: 20, background: 'none', border: 'none',
     fontSize: 13, color: '#bdbdbd', letterSpacing: 1, cursor: 'pointer',
+  },
+  triviaDesc: {
+    marginTop: 12, fontSize: 12, color: '#bdbdbd', textAlign: 'center',
+    maxWidth: 280, lineHeight: 1.5,
   },
 };
