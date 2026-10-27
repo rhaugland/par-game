@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth, useUser } from '@clerk/react';
 import { generatePuzzle } from './engine/generator';
 import { createGameState, addToPath, getMoves, getScoreLabel } from './engine/game';
 import { solvePath } from './engine/solver';
@@ -10,6 +9,7 @@ import {
   getLocalTickets, getLocalInventory, syncRecordsFromApi,
 } from './storage';
 import { setAuthTokenGetter, buyPowerup as apiBuyPowerup, usePowerupApi, fetchProfile } from './lib/api';
+import { useClerkAuth } from './useClerkAuth';
 import Grid from './Grid';
 import ScoreModal from './ScoreModal';
 import StatsModal from './StatsModal';
@@ -19,7 +19,7 @@ import LoginModal from './LoginModal';
 
 const DARK_KEY = 'par_dark_mode';
 
-export default function App() {
+export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [showScore, setShowScore] = useState(false);
@@ -31,20 +31,11 @@ export default function App() {
   const [tickets, setTickets] = useState(0);
   const [inventory, setInventory] = useState<Record<string, number>>({});
 
-  // Clerk auth
-  let isSignedIn = false;
-  let clerkUser: { firstName?: string | null } | null | undefined = null;
-  let getToken: (() => Promise<string | null>) | null = null;
-
-  try {
-    const auth = useAuth();
-    const user = useUser();
-    isSignedIn = !!auth.isSignedIn;
-    clerkUser = user.user;
-    getToken = auth.getToken;
-  } catch {
-    // Clerk not available
-  }
+  // Clerk auth — only call hooks when Clerk is enabled (provider is mounted)
+  const clerkAuth = clerkEnabled ? useClerkAuth() : null; // eslint-disable-line react-hooks/rules-of-hooks
+  const isSignedIn = clerkAuth?.isSignedIn ?? false;
+  const clerkFirstName = clerkAuth?.firstName ?? null;
+  const getToken = clerkAuth?.getToken ?? null;
 
   const stateRef = useRef<GameState | null>(null);
   stateRef.current = gameState;
@@ -308,13 +299,13 @@ export default function App() {
       <div style={s.headerRow}>
         <div style={s.headerLeft}>
           <button style={s.iconBtn} onClick={() => isSignedIn ? undefined : setShowLogin(true)}>
-            {isSignedIn && clerkUser ? (
+            {isSignedIn ? (
               <div style={{
                 width: 28, height: 28, borderRadius: 14,
                 background: '#4caf50', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 13, fontWeight: 700, color: '#fff',
               }}>
-                {(clerkUser.firstName?.[0] || 'P').toUpperCase()}
+                {(clerkFirstName?.[0] || 'P').toUpperCase()}
               </div>
             ) : (
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.icon} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
