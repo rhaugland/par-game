@@ -134,14 +134,11 @@ export default function ArcadeModal({ visible, onClose, tickets, inventory, powe
       <div style={{ ...styles.modal, background: bg }} onClick={e => e.stopPropagation()}>
         <button style={{ ...styles.x, color: dark ? '#666' : '#bdbdbd' }} onClick={onClose}>&times;</button>
 
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: text, letterSpacing: 3, textTransform: 'uppercase' }}>
-            Shop
-          </div>
+        {/* Token balance */}
+        <div style={{ textAlign: 'center', marginBottom: 16 }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
-            marginTop: 10, padding: '8px 20px', borderRadius: 100,
+            padding: '8px 20px', borderRadius: 100,
             background: dark ? '#2a2a2a' : '#f0f0f0',
             fontSize: 16, fontWeight: 700, color: text,
           }}>
@@ -151,25 +148,83 @@ export default function ArcadeModal({ visible, onClose, tickets, inventory, powe
           <div style={{ fontSize: 10, color: sub, marginTop: 4, letterSpacing: 1 }}>TOKENS</div>
         </div>
 
-        {/* Powerups */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* Inventory section — only if you own something */}
+        {(() => {
+          const ownedItems = POWERUPS.filter(p => (inventory[p.type] || 0) > 0);
+          if (ownedItems.length === 0) return null;
+          return (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: sub, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
+                Inventory
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+                {ownedItems.map(({ type, label, icon, desc }) => {
+                  const owned = inventory[type] || 0;
+                  const usedThisPuzzle = powerupsUsed[type] || 0;
+                  const limit = POWERUP_LIMITS[type];
+                  const canUse = owned > 0 && usedThisPuzzle < limit && !completed
+                    && (type !== 'trivia_retry' || hasFailed);
+
+                  return (
+                    <div key={type} style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '10px 14px', borderRadius: 14,
+                      background: dark ? '#1e3a1e' : '#f1f8f1', border: `1.5px solid ${dark ? '#2e5a2e' : '#d4edd4'}`,
+                    }}>
+                      <div style={{
+                        width: 38, height: 38, borderRadius: 10,
+                        background: dark ? '#2e5a2e' : '#e0f2e0',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        {icon(dark ? '#8bc34a' : '#4caf50')}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: text }}>{label}</div>
+                        <div style={{ fontSize: 10, color: sub, marginTop: 1 }}>{desc}</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: dark ? '#8bc34a' : '#4caf50' }}>
+                          x{owned}
+                        </div>
+                        <button
+                          onClick={() => canUse && onUse(type)}
+                          style={{
+                            padding: '7px 14px', borderRadius: 8, border: 'none',
+                            fontSize: 12, fontWeight: 700, cursor: canUse ? 'pointer' : 'default',
+                            background: canUse ? '#4caf50' : (dark ? '#2a2a2a' : '#e0e0e0'),
+                            color: canUse ? '#fff' : (dark ? '#444' : '#aaa'),
+                            WebkitTapHighlightColor: 'transparent',
+                          }}
+                        >
+                          Use
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          );
+        })()}
+
+        {/* Shop section */}
+        <div style={{ fontSize: 11, fontWeight: 700, color: sub, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
+          Power-Up Shop
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {POWERUPS.map(({ type, label, icon, desc }) => {
             const cost = POWERUP_COSTS[type];
-            const owned = inventory[type] || 0;
-            const usedThisPuzzle = powerupsUsed[type] || 0;
-            const limit = POWERUP_LIMITS[type];
-            const canUse = owned > 0 && usedThisPuzzle < limit && !completed
-              && (type !== 'trivia_retry' || hasFailed);
             const canBuy = tickets >= cost;
 
             return (
               <div key={type} style={{
                 display: 'flex', alignItems: 'center', gap: 12,
-                padding: '12px 14px', borderRadius: 14,
+                padding: '10px 14px', borderRadius: 14,
                 background: cardBg, border: `1.5px solid ${border}`,
               }}>
                 <div style={{
-                  width: 42, height: 42, borderRadius: 12,
+                  width: 38, height: 38, borderRadius: 10,
                   background: dark ? '#333' : '#eee',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
@@ -177,45 +232,24 @@ export default function ArcadeModal({ visible, onClose, tickets, inventory, powe
                   {icon(iconColor)}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: text }}>{label}</div>
-                  <div style={{ fontSize: 11, color: sub, marginTop: 1 }}>{desc}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: text }}>{label}</div>
+                  <div style={{ fontSize: 10, color: sub, marginTop: 1 }}>{desc}</div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                  {owned > 0 && (
-                    <div style={{ fontSize: 10, fontWeight: 700, color: sub, letterSpacing: 0.5 }}>
-                      x{owned}
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      onClick={() => canBuy && onBuy(type)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 3,
-                        padding: '6px 10px', borderRadius: 8, border: 'none',
-                        fontSize: 11, fontWeight: 700, cursor: canBuy ? 'pointer' : 'default',
-                        background: canBuy ? (dark ? '#2e7d32' : '#e8f5e9') : (dark ? '#2a2a2a' : '#f5f5f5'),
-                        color: canBuy ? (dark ? '#fff' : '#2e7d32') : (dark ? '#444' : '#ccc'),
-                        opacity: canBuy ? 1 : 0.5,
-                        WebkitTapHighlightColor: 'transparent',
-                      }}
-                    >
-                      {cost}<TokenIcon size={10} color={canBuy ? (dark ? '#fff' : '#2e7d32') : (dark ? '#444' : '#ccc')} />
-                    </button>
-                    <button
-                      onClick={() => canUse && onUse(type)}
-                      style={{
-                        padding: '6px 10px', borderRadius: 8, border: 'none',
-                        fontSize: 11, fontWeight: 700, cursor: canUse ? 'pointer' : 'default',
-                        background: canUse ? '#1a1a2e' : (dark ? '#2a2a2a' : '#f5f5f5'),
-                        color: canUse ? '#fff' : (dark ? '#444' : '#ccc'),
-                        opacity: canUse ? 1 : 0.5,
-                        WebkitTapHighlightColor: 'transparent',
-                      }}
-                    >
-                      Use
-                    </button>
-                  </div>
-                </div>
+                <button
+                  onClick={() => canBuy && onBuy(type)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    padding: '7px 12px', borderRadius: 8, border: 'none',
+                    fontSize: 12, fontWeight: 700, cursor: canBuy ? 'pointer' : 'default',
+                    background: canBuy ? (dark ? '#2e7d32' : '#e8f5e9') : (dark ? '#2a2a2a' : '#f5f5f5'),
+                    color: canBuy ? (dark ? '#fff' : '#2e7d32') : (dark ? '#444' : '#ccc'),
+                    opacity: canBuy ? 1 : 0.5,
+                    flexShrink: 0,
+                    WebkitTapHighlightColor: 'transparent',
+                  }}
+                >
+                  {cost}<TokenIcon size={10} color={canBuy ? (dark ? '#fff' : '#2e7d32') : (dark ? '#444' : '#ccc')} />
+                </button>
               </div>
             );
           })}
