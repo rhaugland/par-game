@@ -100,7 +100,7 @@ export function solveWithOpenCells(
       if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
       const key = `${nr},${nc}`;
       const cellType = grid[nr][nc].type;
-      if (cellType === CellType.Wall) continue;
+      if (cellType === CellType.Wall && !openCells.has(key)) continue;
       if (cellType === CellType.TriviaWall && !openCells.has(key)) continue;
 
       if (!visited.has(key)) {
