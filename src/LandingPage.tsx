@@ -5,22 +5,26 @@ interface Props {
   onPlay: () => void;
 }
 
-// Static mini puzzle for visual demo (8x8)
+// Static 7x7 demo — path hits every special tile so they're all visible
 // 0=Empty, 1=Wall, 2=Start, 3=End, 4=TriviaWall, 5=Ice, 6=Sand, 7=Trap, 8=Checkpoint
+const DEMO_COLS = 7;
+const DEMO_ROWS = 7;
 const DEMO: number[][] = [
-  [1,1,1,1,1,1,1,1],
-  [1,2,0,5,0,1,0,1],
-  [1,0,1,1,0,4,0,1],
-  [1,0,0,7,0,1,6,1],
-  [1,1,0,1,0,0,0,1],
-  [1,0,0,0,8,1,0,1],
-  [1,0,1,0,0,0,3,1],
-  [1,1,1,1,1,1,1,1],
+  [1, 1, 1, 1, 1, 1, 1],
+  [1, 2, 5, 5, 0, 7, 1],
+  [1, 0, 1, 4, 0, 0, 1],
+  [1, 8, 1, 0, 6, 6, 1],
+  [1, 0, 1, 0, 1, 0, 1],
+  [1, 0, 0, 0, 0, 3, 1],
+  [1, 1, 1, 1, 1, 1, 1],
 ];
-
+// Path: start → slide ice → down → sand → down → right → goal
+// Shows: ice(path), sand(path), checkpoint(path), trivia(adjacent), trap(adjacent)
 const DEMO_PATH: [number, number][] = [
-  [1,1],[1,2],[1,3],[1,4],[2,4],[3,4],[4,4],[4,5],[4,6],[5,6],[6,6],
+  [1,1],[1,2],[1,3],[1,4],[2,4],[3,4],[3,3],[4,3],[5,3],[5,4],[5,5],
 ];
+const DEMO_START: [number, number] = [1, 1];
+const DEMO_END: [number, number] = [5, 5];
 
 // Renders a single cell exactly like Grid.tsx
 function DemoCell({ type, cellSize, isStart, isEnd, r, c }: {
@@ -111,9 +115,9 @@ export default function LandingPage({ dark, onPlay }: Props) {
   const cardBg = dark ? '#1e1e1e' : '#f8f9fa';
   const cardBorder = dark ? '#2a2a2a' : '#eee';
 
-  const cellSize = 36;
-  const gridW = 8 * cellSize;
-  const gridH = 8 * cellSize;
+  const cellSize = 44;
+  const gridW = DEMO_COLS * cellSize;
+  const gridH = DEMO_ROWS * cellSize;
   const strokeWidth = cellSize * 0.55;
   const pathPoints = DEMO_PATH.map(([r, c]) => ({
     x: c * cellSize + cellSize / 2,
@@ -150,8 +154,8 @@ export default function LandingPage({ dark, onPlay }: Props) {
               key={`${r},${c}`}
               type={cell}
               cellSize={cellSize}
-              isStart={r === 1 && c === 1}
-              isEnd={r === 6 && c === 6}
+              isStart={r === DEMO_START[0] && c === DEMO_START[1]}
+              isEnd={r === DEMO_END[0] && c === DEMO_END[1]}
               r={r} c={c}
             />
           ))
@@ -184,13 +188,17 @@ export default function LandingPage({ dark, onPlay }: Props) {
             fill="none" stroke="rgba(255,255,255,0.25)"
             strokeWidth={strokeWidth * 0.3} strokeLinecap="round" strokeLinejoin="round" />
           {/* Start marker */}
-          <circle cx={1 * cellSize + cellSize / 2} cy={1 * cellSize + cellSize / 2}
+          <circle cx={DEMO_START[1] * cellSize + cellSize / 2} cy={DEMO_START[0] * cellSize + cellSize / 2}
             r={strokeWidth * 0.35} fill="#2e7d32" stroke="#fff" strokeWidth={2} />
-          {/* Head marker */}
-          <circle cx={6 * cellSize + cellSize / 2} cy={6 * cellSize + cellSize / 2}
-            r={strokeWidth * 0.42} fill="#2e7d32" opacity={0.3} />
-          <circle cx={6 * cellSize + cellSize / 2} cy={6 * cellSize + cellSize / 2}
-            r={strokeWidth * 0.32} fill="#fff" opacity={0.9} />
+          {/* Head marker at end of path */}
+          {(() => { const h = DEMO_PATH[DEMO_PATH.length - 1]; return (
+            <>
+              <circle cx={h[1] * cellSize + cellSize / 2} cy={h[0] * cellSize + cellSize / 2}
+                r={strokeWidth * 0.42} fill="#2e7d32" opacity={0.3} />
+              <circle cx={h[1] * cellSize + cellSize / 2} cy={h[0] * cellSize + cellSize / 2}
+                r={strokeWidth * 0.32} fill="#fff" opacity={0.9} />
+            </>
+          ); })()}
         </svg>
       </div>
 
