@@ -5,7 +5,10 @@ const POWERUP_COSTS: Record<string, number> = {
   backspace: 1,
   trivia_retry: 2,
   bomb: 3,
+  melt_ice: 2,
+  pave_sand: 2,
   puzzle_retry: 5,
+  skip_checkpoint: 4,
   par_path: 8,
 };
 

@@ -35,13 +35,16 @@ export interface Puzzle {
   checkpoints: [number, number][];
 }
 
-export type PowerupType = 'backspace' | 'trivia_retry' | 'bomb' | 'puzzle_retry' | 'par_path';
+export type PowerupType = 'backspace' | 'trivia_retry' | 'bomb' | 'puzzle_retry' | 'par_path' | 'melt_ice' | 'pave_sand' | 'skip_checkpoint';
 
 export const POWERUP_COSTS: Record<PowerupType, number> = {
   backspace: 1,
   trivia_retry: 2,
   bomb: 3,
+  melt_ice: 2,
+  pave_sand: 2,
   puzzle_retry: 5,
+  skip_checkpoint: 4,
   par_path: 8,
 };
 
@@ -49,7 +52,10 @@ export const POWERUP_LIMITS: Record<PowerupType, number> = {
   backspace: 3,
   trivia_retry: 1,
   bomb: 1,
+  melt_ice: 2,
+  pave_sand: 3,
   puzzle_retry: 1,
+  skip_checkpoint: 1,
   par_path: 1,
 };
 
@@ -63,6 +69,8 @@ export interface GameState {
   triviaPenalty: number;
   powerupsUsed: Record<string, number>;
   bombMode: boolean;
+  meltMode: boolean;
+  paveMode: boolean;
   parPath: [number, number][] | null;
   checkpointsVisited: Set<number>;
   triggeredTraps: Set<string>;

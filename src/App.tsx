@@ -152,6 +152,24 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
       return;
     }
 
+    // Melt ice mode
+    if (gs.meltMode) {
+      if (pz.grid[r][c].type === 5 /* Ice */) {
+        pz.grid[r][c] = { type: 0 /* Empty */ };
+        setGameState(s => s ? { ...s, meltMode: false } : s);
+      }
+      return;
+    }
+
+    // Pave sand mode
+    if (gs.paveMode) {
+      if (pz.grid[r][c].type === 6 /* Sand */) {
+        pz.grid[r][c] = { type: 0 /* Empty */ };
+        setGameState(s => s ? { ...s, paveMode: false } : s);
+      }
+      return;
+    }
+
     const next = addToPath(gs, r, c, pz);
     if (next !== gs) {
       // Check if trap was triggered (path reset)
@@ -286,6 +304,29 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
           powerupsUsed: newUsed,
         });
         setShowArcade(false);
+        break;
+      }
+      case 'melt_ice': {
+        setGameState(s => s ? { ...s, meltMode: true, powerupsUsed: newUsed } : s);
+        setShowArcade(false);
+        break;
+      }
+      case 'pave_sand': {
+        setGameState(s => s ? { ...s, paveMode: true, powerupsUsed: newUsed } : s);
+        setShowArcade(false);
+        break;
+      }
+      case 'skip_checkpoint': {
+        if (puzzle.checkpoints.length === 0) return;
+        // Skip the first unvisited checkpoint
+        const unvisited = puzzle.checkpoints.findIndex((_cp, i) => !gameState.checkpointsVisited.has(i));
+        if (unvisited === -1) return;
+        setGameState(s => {
+          if (!s) return s;
+          const newCp = new Set(s.checkpointsVisited);
+          newCp.add(unvisited);
+          return { ...s, checkpointsVisited: newCp, powerupsUsed: newUsed };
+        });
         break;
       }
       case 'par_path': {
@@ -441,6 +482,12 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
       )}
       {gameState.bombMode && (
         <div style={{ ...s.hint, color: '#ff9800', fontWeight: 600 }}>Tap a wall to destroy it</div>
+      )}
+      {gameState.meltMode && (
+        <div style={{ ...s.hint, color: '#0288d1', fontWeight: 600 }}>Tap an ice tile to melt it</div>
+      )}
+      {gameState.paveMode && (
+        <div style={{ ...s.hint, color: '#e65100', fontWeight: 600 }}>Tap a sand tile to pave it</div>
       )}
       {trapFlash && (
         <div style={{ ...s.hint, color: '#c62828', fontWeight: 600 }}>Trap! Back to start (+2)</div>

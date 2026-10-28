@@ -72,10 +72,39 @@ function TokenIcon({ size = 14, color = 'currentColor' }: { size?: number; color
   );
 }
 
+function IceIcon({ color }: { color: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2v20M2 12h20M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
+function SandIcon({ color }: { color: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 20h16M6 16h12M8 12h8" />
+      <circle cx="12" cy="6" r="2" />
+    </svg>
+  );
+}
+
+function FlagIcon({ color }: { color: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+      <line x1="4" y1="22" x2="4" y2="15" />
+    </svg>
+  );
+}
+
 const POWERUPS: { type: PowerupType; label: string; icon: (color: string) => React.ReactNode; desc: string }[] = [
   { type: 'backspace', label: 'Undo', icon: (c) => <UndoIcon color={c} />, desc: 'Undo your last move' },
   { type: 'trivia_retry', label: 'Retry Q', icon: (c) => <RetryIcon color={c} />, desc: 'Retry a failed trivia question' },
   { type: 'bomb', label: 'Bomb', icon: (c) => <BombIcon color={c} />, desc: 'Destroy any wall cell' },
+  { type: 'melt_ice', label: 'Melt Ice', icon: (c) => <IceIcon color={c} />, desc: 'Tap an ice tile to make it normal' },
+  { type: 'pave_sand', label: 'Pave Sand', icon: (c) => <SandIcon color={c} />, desc: 'Tap a sand tile to remove the penalty' },
+  { type: 'skip_checkpoint', label: 'Skip CP', icon: (c) => <FlagIcon color={c} />, desc: 'Skip one unvisited checkpoint' },
   { type: 'puzzle_retry', label: 'Restart', icon: (c) => <RestartIcon color={c} />, desc: 'Restart the puzzle fresh' },
   { type: 'par_path', label: 'Par Path', icon: (c) => <EyeIcon color={c} />, desc: 'Reveal the optimal route' },
 ];
