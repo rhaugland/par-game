@@ -4,7 +4,7 @@ import { getCategoryIcon } from './engine/trivia';
 
 interface Props {
   question: TriviaQuestion;
-  onResult: (correct: boolean) => void;
+  onResult: (correct: boolean | null) => void;
 }
 
 export default function TriviaModal({ question, onResult }: Props) {
@@ -24,6 +24,13 @@ export default function TriviaModal({ question, onResult }: Props) {
   return (
     <div style={styles.overlay}>
       <div style={styles.card}>
+        {!revealed && (
+          <button style={styles.closeBtn} onClick={() => onResult(null)} aria-label="Close">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/>
+            </svg>
+          </button>
+        )}
         <div style={styles.catRow}>
           <span style={styles.icon}>{icon}</span>
           <span style={styles.cat}>{catLabel}</span>
@@ -82,6 +89,12 @@ const styles: Record<string, React.CSSProperties> = {
   card: {
     background: '#fff', borderRadius: 24, padding: '28px 24px',
     width: '88%', maxWidth: 360, position: 'relative',
+  },
+  closeBtn: {
+    position: 'absolute', top: 12, right: 12,
+    background: 'none', border: 'none', cursor: 'pointer',
+    color: '#9e9e9e', padding: 4, display: 'flex',
+    alignItems: 'center', justifyContent: 'center',
   },
   catRow: {
     display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16,

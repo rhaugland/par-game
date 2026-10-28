@@ -142,8 +142,8 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     setTriviaTarget({ r: _r, c: _c, question });
   }, []);
 
-  const handleTriviaResult = useCallback((correct: boolean) => {
-    if (triviaTarget) {
+  const handleTriviaResult = useCallback((correct: boolean | null) => {
+    if (triviaTarget && correct !== null) {
       setGameState(s => {
         if (!s) return s;
         if (correct) {
