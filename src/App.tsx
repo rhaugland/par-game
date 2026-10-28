@@ -16,8 +16,10 @@ import StatsModal from './StatsModal';
 import TriviaModal from './TriviaModal';
 import ArcadeModal from './ArcadeModal';
 import LoginModal from './LoginModal';
+import LandingPage from './LandingPage';
 
 const DARK_KEY = 'par_dark_mode';
+const LANDING_KEY = 'par_seen_landing';
 const TIMER_DURATION = 60; // seconds
 const OVERTIME_INTERVAL = 15; // +1 per 15s over
 
@@ -33,6 +35,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
   const [tickets, setTickets] = useState(0);
   const [inventory, setInventory] = useState<Record<string, number>>({});
   const [trapFlash, setTrapFlash] = useState(false);
+  const [showLanding, setShowLanding] = useState(() => !localStorage.getItem(LANDING_KEY));
 
   // Timer state
   const [elapsed, setElapsed] = useState(0);
@@ -359,6 +362,18 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
   }, []);
 
   if (!puzzle || !gameState) return null;
+
+  if (showLanding) {
+    return (
+      <LandingPage
+        dark={dark}
+        onPlay={() => {
+          localStorage.setItem(LANDING_KEY, '1');
+          setShowLanding(false);
+        }}
+      />
+    );
+  }
 
   const todayRecord = getTodayRecord(todaySeed());
   const moves = gameState.completed && todayRecord ? todayRecord.moves : getMoves(gameState, puzzle);

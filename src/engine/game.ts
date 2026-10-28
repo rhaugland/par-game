@@ -189,7 +189,8 @@ export function generateShareCard(
   const scoreStr = score <= 0 ? `${score}` : `+${score}`;
 
   let card = `Par #${dayNum} ${scoreStr} (${scoreLabel})\n`;
-  card += `${moves} moves | Par ${puzzle.par}\n\n`;
+  card += `${moves} moves | Par ${puzzle.par}\n`;
+  card += `par-web.vercel.app\n\n`;
 
   const pathSet = new Set(state.path.map(([r, c]) => `${r},${c}`));
   for (let r = 0; r < puzzle.rows; r++) {

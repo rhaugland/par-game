@@ -1,8 +1,52 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { GameState, Puzzle } from './engine/types';
+import { GameState, Puzzle, CellType } from './engine/types';
 import { getScoreLabel, getMoves } from './engine/game';
 import { dayNumber, todaySeed } from './engine/seed';
 import { getLocalStats, getTodayRecord } from './storage';
+
+function MiniGrid({ puzzle, path }: { puzzle: Puzzle; path: [number, number][] }) {
+  const size = Math.min(Math.floor(260 / puzzle.cols), Math.floor(180 / puzzle.rows), 18);
+  const gap = 1;
+  const w = puzzle.cols * (size + gap) - gap;
+  const h = puzzle.rows * (size + gap) - gap;
+  const pathSet = new Set(path.map(([r, c]) => `${r},${c}`));
+
+  const cellColor = (r: number, c: number) => {
+    const t = puzzle.grid[r][c].type;
+    const isStart = r === puzzle.start[0] && c === puzzle.start[1];
+    const isEnd = r === puzzle.end[0] && c === puzzle.end[1];
+    const onPath = pathSet.has(`${r},${c}`);
+
+    if (isStart) return '#4caf50';
+    if (isEnd) return '#e53935';
+    if (t === CellType.Wall) return '#2a2a3e';
+    if (t === CellType.TriviaWall) return '#3a3a4e';
+    if (t === CellType.Ice) return onPath ? '#64b5f6' : '#90caf9';
+    if (t === CellType.Sand) return onPath ? '#ffa726' : '#ffcc80';
+    if (onPath) return '#66bb6a';
+    return '#e8e8e8';
+  };
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', margin: '12px 0 16px' }}>
+      <svg width={w} height={h}>
+        {Array.from({ length: puzzle.rows }, (_, r) =>
+          Array.from({ length: puzzle.cols }, (_, c) => (
+            <rect
+              key={`${r},${c}`}
+              x={c * (size + gap)}
+              y={r * (size + gap)}
+              width={size}
+              height={size}
+              rx={2}
+              fill={cellColor(r, c)}
+            />
+          ))
+        )}
+      </svg>
+    </div>
+  );
+}
 
 interface Props {
   visible: boolean;
@@ -77,16 +121,21 @@ export default function ScoreModal({ visible, gameState, puzzle, onClose, isSign
 
         {/* Shareable card area */}
         <div ref={cardRef} style={st.card}>
-          <div style={st.cardHeader}>
+          <div style={st.cardTop}>
             <span style={st.cardLogo}>par</span>
-            <span style={st.cardDay}>#{dayNumber()}</span>
+            <span style={st.cardTagline}>daily maze challenge</span>
           </div>
+
+          <div style={st.cardDay}>#{dayNumber()}</div>
 
           <div style={{ ...st.scoreLabel, color: scoreColor }}>{label}</div>
           <div style={{ ...st.scoreBig, color: scoreColor }}>
             {score <= 0 ? score : `+${score}`}
           </div>
           <div style={st.movesDetail}>{moves} moves &middot; par {puzzle.par}</div>
+
+          {/* Mini grid visualization */}
+          <MiniGrid puzzle={puzzle} path={gameState.path} />
 
           <div style={st.statsRow}>
             <div style={st.statBox}>
@@ -152,15 +201,19 @@ const st: Record<string, React.CSSProperties> = {
     background: '#fff', borderRadius: 16, padding: '24px 20px 16px',
     border: '1.5px solid #f0f0f0',
   },
-  cardHeader: {
+  cardTop: {
     display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: 8,
-    marginBottom: 16,
+    marginBottom: 4,
   },
   cardLogo: {
-    fontSize: 22, fontWeight: 200, color: '#1a1a2e', letterSpacing: 6,
+    fontSize: 24, fontWeight: 200, color: '#1a1a2e', letterSpacing: 8,
+  },
+  cardTagline: {
+    fontSize: 9, color: '#bdbdbd', letterSpacing: 2, textTransform: 'uppercase' as const,
   },
   cardDay: {
-    fontSize: 12, color: '#bdbdbd', letterSpacing: 1,
+    fontSize: 13, color: '#9e9e9e', letterSpacing: 1, textAlign: 'center' as const,
+    marginBottom: 12,
   },
   scoreLabel: {
     fontSize: 14, fontWeight: 600, textTransform: 'uppercase',
