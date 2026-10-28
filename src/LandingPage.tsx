@@ -6,6 +6,7 @@ interface Props {
 }
 
 // Static mini puzzle for visual demo (8x8)
+// 0=Empty, 1=Wall, 2=Start, 3=End, 4=TriviaWall, 5=Ice, 6=Sand, 7=Trap, 8=Checkpoint
 const DEMO: number[][] = [
   [1,1,1,1,1,1,1,1],
   [1,2,0,5,0,1,0,1],
@@ -21,17 +22,86 @@ const DEMO_PATH: [number, number][] = [
   [1,1],[1,2],[1,3],[1,4],[2,4],[3,4],[4,4],[4,5],[4,6],[5,6],[6,6],
 ];
 
-const CELL_COLORS: Record<number, { bg: string; dark: string }> = {
-  [CellType.Empty]:      { bg: '#f0f0f0', dark: '#2a2a2a' },
-  [CellType.Wall]:       { bg: '#1a1a2e', dark: '#0a0a1a' },
-  [CellType.Start]:      { bg: '#4caf50', dark: '#4caf50' },
-  [CellType.End]:        { bg: '#e53935', dark: '#e53935' },
-  [CellType.TriviaWall]: { bg: '#7e57c2', dark: '#5e35b1' },
-  [CellType.Ice]:        { bg: '#b3e5fc', dark: '#4fc3f7' },
-  [CellType.Sand]:       { bg: '#ffe0b2', dark: '#ffb74d' },
-  [CellType.Trap]:       { bg: '#ffcdd2', dark: '#ef9a9a' },
-  [CellType.Checkpoint]: { bg: '#fff9c4', dark: '#fff176' },
-};
+// Renders a single cell exactly like Grid.tsx
+function DemoCell({ type, cellSize, isStart, isEnd, r, c }: {
+  type: number; cellSize: number; isStart: boolean; isEnd: boolean; r: number; c: number;
+}) {
+  const isWall = type === CellType.Wall;
+  const isTrivia = type === CellType.TriviaWall;
+  const isIce = type === CellType.Ice;
+  const isSand = type === CellType.Sand;
+  const isTrap = type === CellType.Trap;
+  const isCheckpoint = type === CellType.Checkpoint;
+  const isSolid = isWall || isTrivia;
+
+  let bg = '#f0f1f3';
+  if (isWall) bg = '#1a1a2e';
+  if (isTrivia) bg = '#2a2a3e';
+  if (isIce) bg = '#b3e5fc';
+  if (isSand) bg = '#ffe0b2';
+  if (isTrap) bg = '#ffcdd2';
+  if (isCheckpoint) bg = '#e0e0e0';
+
+  return (
+    <div style={{
+      position: 'absolute',
+      left: c * cellSize, top: r * cellSize,
+      width: cellSize, height: cellSize,
+      backgroundColor: bg,
+      borderRadius: isSolid ? 4 : 0,
+      display: 'flex', justifyContent: 'center', alignItems: 'center',
+      boxSizing: 'border-box',
+      border: isSolid ? 'none' : '1px solid rgba(0,0,0,0.06)',
+      overflow: 'hidden',
+    }}>
+      {isTrivia && (
+        <span style={{
+          color: '#fff', fontSize: Math.max(cellSize * 0.32, 11),
+          fontWeight: 700, lineHeight: 1, opacity: 0.9, letterSpacing: -0.5,
+        }}>W?</span>
+      )}
+      {isIce && (
+        <svg width={cellSize * 0.5} height={cellSize * 0.5} viewBox="0 0 16 16" fill="none" style={{ opacity: 0.4 }}>
+          <path d="M8 2v12M2 8h12M4 4l8 8M12 4l-8 8" stroke="#0288d1" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      )}
+      {isSand && (
+        <svg width={cellSize * 0.5} height={cellSize * 0.5} viewBox="0 0 16 16" fill="#e65100" style={{ opacity: 0.35 }}>
+          <circle cx="4" cy="4" r="1.5" /><circle cx="12" cy="4" r="1.5" />
+          <circle cx="8" cy="8" r="1.5" />
+          <circle cx="4" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" />
+        </svg>
+      )}
+      {isTrap && (
+        <span style={{
+          fontSize: Math.max(cellSize * 0.4, 12), fontWeight: 800,
+          color: '#c62828', lineHeight: 1,
+        }}>!</span>
+      )}
+      {isCheckpoint && (
+        <div style={{
+          width: cellSize * 0.6, height: cellSize * 0.6,
+          borderRadius: '50%', backgroundColor: '#9e9e9e',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{ color: '#fff', fontSize: Math.max(cellSize * 0.3, 10), fontWeight: 800, lineHeight: 1 }}>1</span>
+        </div>
+      )}
+      {isStart && (
+        <div style={{
+          width: 22, height: 22, borderRadius: 11,
+          backgroundColor: '#4caf50',
+          boxShadow: '0 0 10px rgba(76,175,80,0.4)',
+        }} />
+      )}
+      {isEnd && (
+        <div style={{ padding: '4px 8px', borderRadius: 4, backgroundColor: '#ff5252' }}>
+          <span style={{ color: '#fff', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>GOAL</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function LandingPage({ dark, onPlay }: Props) {
   const bg = dark ? '#121212' : '#fff';
@@ -40,12 +110,15 @@ export default function LandingPage({ dark, onPlay }: Props) {
   const muted = dark ? '#555' : '#bdbdbd';
   const cardBg = dark ? '#1e1e1e' : '#f8f9fa';
   const cardBorder = dark ? '#2a2a2a' : '#eee';
-  const pathSet = new Set(DEMO_PATH.map(([r,c]) => `${r},${c}`));
 
-  const cellSize = 32;
-  const gap = 2;
-  const gridW = 8 * (cellSize + gap) - gap;
-  const gridH = 8 * (cellSize + gap) - gap;
+  const cellSize = 36;
+  const gridW = 8 * cellSize;
+  const gridH = 8 * cellSize;
+  const strokeWidth = cellSize * 0.55;
+  const pathPoints = DEMO_PATH.map(([r, c]) => ({
+    x: c * cellSize + cellSize / 2,
+    y: r * cellSize + cellSize / 2,
+  }));
 
   return (
     <div style={{ background: bg, minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 16px', paddingBottom: 48 }}>
@@ -62,69 +135,62 @@ export default function LandingPage({ dark, onPlay }: Props) {
         </div>
       </div>
 
-      {/* Demo grid */}
+      {/* Demo grid — matches Grid.tsx rendering exactly */}
       <div style={{
-        borderRadius: 14, overflow: 'hidden', padding: 12,
-        background: dark ? '#1a1a1a' : '#fff',
+        borderRadius: 12, overflow: 'hidden',
+        width: gridW, height: gridH,
+        backgroundColor: '#e2e5e9',
+        position: 'relative',
         boxShadow: dark ? '0 4px 24px rgba(0,0,0,0.4)' : '0 4px 24px rgba(0,0,0,0.08)',
         marginBottom: 28,
       }}>
-        <svg width={gridW} height={gridH}>
-          {DEMO.map((row, r) =>
-            row.map((cell, c) => {
-              const onPath = pathSet.has(`${r},${c}`);
-              const colors = CELL_COLORS[cell] || CELL_COLORS[CellType.Empty];
-              let fill = dark ? colors.dark : colors.bg;
-              if (onPath && cell === CellType.Empty) fill = '#66bb6a';
-              if (onPath && cell === CellType.Ice) fill = '#4fc3f7';
-              if (onPath && cell === CellType.Sand) fill = '#ffa726';
-              return (
-                <g key={`${r},${c}`}>
-                  <rect
-                    x={c * (cellSize + gap)} y={r * (cellSize + gap)}
-                    width={cellSize} height={cellSize} rx={4}
-                    fill={fill}
-                  />
-                  {cell === CellType.TriviaWall && (
-                    <text
-                      x={c * (cellSize + gap) + cellSize / 2}
-                      y={r * (cellSize + gap) + cellSize / 2 + 5}
-                      textAnchor="middle" fontSize="16" fontWeight="700" fill="#fff"
-                    >?</text>
-                  )}
-                  {cell === CellType.Trap && (
-                    <text
-                      x={c * (cellSize + gap) + cellSize / 2}
-                      y={r * (cellSize + gap) + cellSize / 2 + 5}
-                      textAnchor="middle" fontSize="16" fontWeight="700" fill="#c62828"
-                    >!</text>
-                  )}
-                  {cell === CellType.Checkpoint && (
-                    <circle
-                      cx={c * (cellSize + gap) + cellSize / 2}
-                      cy={r * (cellSize + gap) + cellSize / 2}
-                      r={6} fill="none" stroke="#f9a825" strokeWidth="2"
-                    />
-                  )}
-                  {cell === CellType.Ice && (
-                    <text
-                      x={c * (cellSize + gap) + cellSize / 2}
-                      y={r * (cellSize + gap) + cellSize / 2 + 4}
-                      textAnchor="middle" fontSize="12" fill={dark ? '#1a1a2e' : '#0288d1'}
-                    >{'\u2744'}</text>
-                  )}
-                </g>
-              );
-            })
-          )}
-          {/* Path line */}
-          <polyline
-            points={DEMO_PATH.map(([r, c]) =>
-              `${c * (cellSize + gap) + cellSize / 2},${r * (cellSize + gap) + cellSize / 2}`
-            ).join(' ')}
-            fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"
-            strokeLinejoin="round" opacity="0.6"
-          />
+        {DEMO.map((row, r) =>
+          row.map((cell, c) => (
+            <DemoCell
+              key={`${r},${c}`}
+              type={cell}
+              cellSize={cellSize}
+              isStart={r === 1 && c === 1}
+              isEnd={r === 6 && c === 6}
+              r={r} c={c}
+            />
+          ))
+        )}
+        {/* Path SVG — same gradient/style as Grid.tsx */}
+        <svg
+          width={gridW} height={gridH}
+          viewBox={`0 0 ${gridW} ${gridH}`}
+          style={{ position: 'absolute', inset: 0 }}
+          pointerEvents="none"
+        >
+          <defs>
+            <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#66bb6a" />
+              <stop offset="100%" stopColor="#43a047" />
+            </linearGradient>
+            <filter id="pt">
+              <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="4" result="n" />
+              <feDisplacementMap in="SourceGraphic" in2="n" scale="2" />
+            </filter>
+          </defs>
+          <polyline points={pathPoints.map(p => `${p.x},${p.y}`).join(' ')}
+            fill="none" stroke="rgba(0,0,0,0.08)"
+            strokeWidth={strokeWidth + 4} strokeLinecap="round" strokeLinejoin="round" />
+          <polyline points={pathPoints.map(p => `${p.x},${p.y}`).join(' ')}
+            fill="none" stroke="url(#pg)"
+            strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
+            filter="url(#pt)" />
+          <polyline points={pathPoints.map(p => `${p.x - 0.001},${p.y - strokeWidth * 0.15}`).join(' ')}
+            fill="none" stroke="rgba(255,255,255,0.25)"
+            strokeWidth={strokeWidth * 0.3} strokeLinecap="round" strokeLinejoin="round" />
+          {/* Start marker */}
+          <circle cx={1 * cellSize + cellSize / 2} cy={1 * cellSize + cellSize / 2}
+            r={strokeWidth * 0.35} fill="#2e7d32" stroke="#fff" strokeWidth={2} />
+          {/* Head marker */}
+          <circle cx={6 * cellSize + cellSize / 2} cy={6 * cellSize + cellSize / 2}
+            r={strokeWidth * 0.42} fill="#2e7d32" opacity={0.3} />
+          <circle cx={6 * cellSize + cellSize / 2} cy={6 * cellSize + cellSize / 2}
+            r={strokeWidth * 0.32} fill="#fff" opacity={0.9} />
         </svg>
       </div>
 
@@ -144,7 +210,7 @@ export default function LandingPage({ dark, onPlay }: Props) {
         A new puzzle every day at midnight
       </div>
 
-      {/* Tile guide */}
+      {/* Tile guide — uses actual tile colors and icons from Grid.tsx */}
       <div style={{ maxWidth: 360, width: '100%', marginBottom: 32 }}>
         <div style={{ fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', color: muted, textAlign: 'center', marginBottom: 14 }}>
           Tiles
@@ -157,13 +223,13 @@ export default function LandingPage({ dark, onPlay }: Props) {
               background: cardBg, border: `1px solid ${cardBorder}`,
             }}>
               <div style={{
-                width: 36, height: 36, borderRadius: 8,
-                background: dark ? t.darkColor : t.color,
+                width: 40, height: 40, borderRadius: 4,
+                backgroundColor: t.bg,
+                border: t.border ? `1px solid ${t.border}` : 'none',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 16, fontWeight: 700, color: t.iconColor || '#fff',
-                flexShrink: 0,
+                flexShrink: 0, overflow: 'hidden',
               }}>
-                {t.icon}
+                {t.inner}
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: text }}>{t.label}</div>
@@ -227,13 +293,55 @@ export default function LandingPage({ dark, onPlay }: Props) {
   );
 }
 
-const TILES = [
-  { label: 'Walls', icon: '', color: '#1a1a2e', darkColor: '#0a0a1a', iconColor: '#1a1a2e', desc: 'Blocked — find your way around them' },
-  { label: 'Trivia Walls', icon: '?', color: '#7e57c2', darkColor: '#5e35b1', iconColor: '#fff', desc: 'Answer a trivia question to pass. Wrong = +1 penalty stroke' },
-  { label: 'Ice', icon: '\u2744', color: '#b3e5fc', darkColor: '#4fc3f7', iconColor: '#0288d1', desc: "Can't change direction once you step on — you slide straight" },
-  { label: 'Sand', icon: '\u2591', color: '#ffe0b2', darkColor: '#ffb74d', iconColor: '#e65100', desc: 'Costs 2 moves per tile instead of 1' },
-  { label: 'Traps', icon: '!', color: '#ffcdd2', darkColor: '#ef9a9a', iconColor: '#c62828', desc: 'Sends you back to start with a +2 penalty. Disarmed after triggering' },
-  { label: 'Checkpoints', icon: '\u25CB', color: '#fff9c4', darkColor: '#fff176', iconColor: '#f9a825', desc: 'Must visit all checkpoints before reaching the goal' },
+// Tile guide items — rendered with the actual colors/icons from Grid.tsx
+const TILES: { label: string; bg: string; border?: string; inner: React.ReactNode; desc: string }[] = [
+  {
+    label: 'Walls',
+    bg: '#1a1a2e', desc: 'Blocked — find your way around them',
+    inner: null,
+  },
+  {
+    label: 'Trivia Walls',
+    bg: '#2a2a3e', desc: 'Answer a trivia question to pass. Wrong = +1 penalty stroke',
+    inner: <span style={{ color: '#fff', fontSize: 13, fontWeight: 700, opacity: 0.9 }}>W?</span>,
+  },
+  {
+    label: 'Ice',
+    bg: '#b3e5fc', border: 'rgba(0,0,0,0.06)', desc: "Can't change direction — you slide straight through",
+    inner: (
+      <svg width={18} height={18} viewBox="0 0 16 16" fill="none" style={{ opacity: 0.4 }}>
+        <path d="M8 2v12M2 8h12M4 4l8 8M12 4l-8 8" stroke="#0288d1" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Sand',
+    bg: '#ffe0b2', border: 'rgba(0,0,0,0.06)', desc: 'Costs 2 moves per tile instead of 1',
+    inner: (
+      <svg width={18} height={18} viewBox="0 0 16 16" fill="#e65100" style={{ opacity: 0.35 }}>
+        <circle cx="4" cy="4" r="1.5" /><circle cx="12" cy="4" r="1.5" />
+        <circle cx="8" cy="8" r="1.5" />
+        <circle cx="4" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Traps',
+    bg: '#ffcdd2', border: 'rgba(0,0,0,0.06)', desc: 'Sends you back to start with a +2 penalty. Disarmed after triggering',
+    inner: <span style={{ fontSize: 16, fontWeight: 800, color: '#c62828', lineHeight: 1 }}>!</span>,
+  },
+  {
+    label: 'Checkpoints',
+    bg: '#e0e0e0', border: 'rgba(0,0,0,0.06)', desc: 'Must visit all checkpoints before reaching the goal',
+    inner: (
+      <div style={{
+        width: 24, height: 24, borderRadius: '50%', backgroundColor: '#9e9e9e',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <span style={{ color: '#fff', fontSize: 12, fontWeight: 800, lineHeight: 1 }}>1</span>
+      </div>
+    ),
+  },
 ];
 
 const SCORES = [
