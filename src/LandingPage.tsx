@@ -5,26 +5,30 @@ interface Props {
   onPlay: () => void;
 }
 
-// Demo grid that looks like a real generated puzzle — no walled border
-// 0=Empty, 1=Wall, 2=Start, 3=End, 4=TriviaWall, 5=Ice, 6=Sand, 7=Trap, 8=Checkpoint
+// Completed demo — path on empty cells, special tiles visible off-path
+// 0=Empty 1=Wall 2=Start 3=End 4=Trivia 5=Ice 6=Sand 7=Trap 8=Checkpoint
 const DEMO_COLS = 7;
 const DEMO_ROWS = 7;
+//        c0  c1  c2  c3  c4  c5  c6
 const DEMO: number[][] = [
-  [0, 0, 1, 0, 5, 5, 0],
-  [2, 0, 1, 0, 0, 1, 0],
-  [0, 0, 0, 0, 4, 1, 0],
-  [1, 1, 0, 1, 0, 0, 7],
-  [0, 6, 0, 1, 0, 1, 0],
-  [0, 6, 0, 0, 8, 0, 0],
-  [0, 0, 1, 0, 0, 0, 3],
+  [       2,  0,  0,  1,  5,  5,  0],  // r0: start, path, path, wall, ice, ice, empty
+  [       1,  1,  0,  0,  0,  1,  0],  // r1: wall, wall, path, empty, empty, wall, empty
+  [       4,  0,  0,  1,  0,  0,  7],  // r2: trivia, empty, path, wall, empty, empty, trap
+  [       0,  1,  0,  0,  0,  1,  0],  // r3: empty, wall, path, path, empty, wall, empty
+  [       6,  6,  1,  0,  0,  0,  0],  // r4: sand, sand, wall, path, empty, empty, empty
+  [       0,  0,  0,  0,  1,  8,  0],  // r5: empty, empty, empty, path, wall, checkpoint, empty
+  [       0,  1,  0,  0,  0,  0,  3],  // r6: empty, wall, empty, path→path→path→goal
 ];
+// Path: [0,0]→[0,1]→[0,2]→[1,2]→[2,2]→[3,2]→[3,3]→[4,3]→[5,3]→[6,3]→[6,4]→[6,5]→[6,6]
 const DEMO_PATH: [number, number][] = [
-  [1,0],[1,1],[2,1],[2,2],[2,3],
+  [0,0],[0,1],[0,2],[1,2],[2,2],[3,2],[3,3],[4,3],[5,3],[6,3],[6,4],[6,5],[6,6],
 ];
-const DEMO_START: [number, number] = [1, 0];
+const DEMO_START: [number, number] = [0, 0];
 const DEMO_END: [number, number] = [6, 6];
 
-// Renders a single cell exactly like Grid.tsx
+// Renders a single cell exactly like Grid.tsx — with green fill for path cells
+const DEMO_PATH_SET = new Set(DEMO_PATH.map(([r, c]) => `${r},${c}`));
+
 function DemoCell({ type, cellSize, isStart, isEnd, r, c }: {
   type: number; cellSize: number; isStart: boolean; isEnd: boolean; r: number; c: number;
 }) {
@@ -35,6 +39,7 @@ function DemoCell({ type, cellSize, isStart, isEnd, r, c }: {
   const isTrap = type === CellType.Trap;
   const isCheckpoint = type === CellType.Checkpoint;
   const isSolid = isWall || isTrivia;
+  const inPath = DEMO_PATH_SET.has(`${r},${c}`);
 
   let bg = '#f0f1f3';
   if (isWall) bg = '#1a1a2e';
@@ -43,6 +48,12 @@ function DemoCell({ type, cellSize, isStart, isEnd, r, c }: {
   if (isSand) bg = '#ffe0b2';
   if (isTrap) bg = '#ffcdd2';
   if (isCheckpoint) bg = '#e0e0e0';
+
+  // Path fills cell green (matching Grid.tsx)
+  if (inPath && !isWall && !isTrivia) {
+    if (isEnd) bg = '#e53935';
+    else bg = '#66bb6a';
+  }
 
   return (
     <div style={{
@@ -89,14 +100,22 @@ function DemoCell({ type, cellSize, isStart, isEnd, r, c }: {
           <span style={{ color: '#fff', fontSize: Math.max(cellSize * 0.3, 10), fontWeight: 800, lineHeight: 1 }}>1</span>
         </div>
       )}
-      {isStart && (
+      {/* Start marker */}
+      {isStart && inPath && (
         <div style={{
-          width: 22, height: 22, borderRadius: 11,
-          backgroundColor: '#4caf50',
-          boxShadow: '0 0 10px rgba(76,175,80,0.4)',
+          position: 'absolute',
+          width: cellSize * 0.45, height: cellSize * 0.45, borderRadius: '50%',
+          backgroundColor: '#2e7d32', border: '2px solid #fff',
         }} />
       )}
-      {isEnd && (
+      {/* End reached */}
+      {isEnd && inPath && (
+        <span style={{ color: '#fff', fontSize: Math.max(cellSize * 0.28, 8), fontWeight: 800, letterSpacing: 0.5 }}>
+          GOAL
+        </span>
+      )}
+      {/* End not reached */}
+      {isEnd && !inPath && (
         <div style={{ padding: '4px 8px', borderRadius: 4, backgroundColor: '#ff5252' }}>
           <span style={{ color: '#fff', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>GOAL</span>
         </div>
@@ -116,11 +135,6 @@ export default function LandingPage({ dark, onPlay }: Props) {
   const cellSize = 44;
   const gridW = DEMO_COLS * cellSize;
   const gridH = DEMO_ROWS * cellSize;
-  const strokeWidth = cellSize * 0.55;
-  const pathPoints = DEMO_PATH.map(([r, c]) => ({
-    x: c * cellSize + cellSize / 2,
-    y: r * cellSize + cellSize / 2,
-  }));
 
   return (
     <div style={{ background: bg, minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 16px', paddingBottom: 48 }}>
@@ -158,45 +172,15 @@ export default function LandingPage({ dark, onPlay }: Props) {
             />
           ))
         )}
-        {/* Path SVG — same gradient/style as Grid.tsx */}
+        {/* Start circle overlay */}
         <svg
           width={gridW} height={gridH}
           viewBox={`0 0 ${gridW} ${gridH}`}
           style={{ position: 'absolute', inset: 0 }}
           pointerEvents="none"
         >
-          <defs>
-            <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#66bb6a" />
-              <stop offset="100%" stopColor="#43a047" />
-            </linearGradient>
-            <filter id="pt">
-              <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="4" result="n" />
-              <feDisplacementMap in="SourceGraphic" in2="n" scale="2" />
-            </filter>
-          </defs>
-          <polyline points={pathPoints.map(p => `${p.x},${p.y}`).join(' ')}
-            fill="none" stroke="rgba(0,0,0,0.08)"
-            strokeWidth={strokeWidth + 4} strokeLinecap="round" strokeLinejoin="round" />
-          <polyline points={pathPoints.map(p => `${p.x},${p.y}`).join(' ')}
-            fill="none" stroke="url(#pg)"
-            strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
-            filter="url(#pt)" />
-          <polyline points={pathPoints.map(p => `${p.x - 0.001},${p.y - strokeWidth * 0.15}`).join(' ')}
-            fill="none" stroke="rgba(255,255,255,0.25)"
-            strokeWidth={strokeWidth * 0.3} strokeLinecap="round" strokeLinejoin="round" />
-          {/* Start marker */}
           <circle cx={DEMO_START[1] * cellSize + cellSize / 2} cy={DEMO_START[0] * cellSize + cellSize / 2}
-            r={strokeWidth * 0.35} fill="#2e7d32" stroke="#fff" strokeWidth={2} />
-          {/* Head marker at end of path */}
-          {(() => { const h = DEMO_PATH[DEMO_PATH.length - 1]; return (
-            <>
-              <circle cx={h[1] * cellSize + cellSize / 2} cy={h[0] * cellSize + cellSize / 2}
-                r={strokeWidth * 0.42} fill="#2e7d32" opacity={0.3} />
-              <circle cx={h[1] * cellSize + cellSize / 2} cy={h[0] * cellSize + cellSize / 2}
-                r={strokeWidth * 0.32} fill="#fff" opacity={0.9} />
-            </>
-          ); })()}
+            r={cellSize * 0.22} fill="#2e7d32" stroke="#fff" strokeWidth={2} />
         </svg>
       </div>
 
