@@ -15,7 +15,7 @@ interface Props {
 export default function ScoreModal({ visible, gameState, puzzle, onClose, isSignedIn: _isSignedIn }: Props) {
   const [shared, setShared] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
-  const [stats, setStats] = useState({ played: 0, avgScore: 0, bestScore: 0, streak: 0, parOrBetter: 0, birdies: 0, bogeys: 0, pars: 0 });
+  const [stats, setStats] = useState({ played: 0, avgScore: 0, bestScore: 0, streak: 0, parOrBetter: 0, birdies: 0, bogeys: 0, pars: 0, lifetimeScore: 0 });
 
   useEffect(() => {
     if (visible) {
@@ -111,8 +111,10 @@ export default function ScoreModal({ visible, gameState, puzzle, onClose, isSign
           </div>
 
           <div style={st.streakRow}>
-            <span style={st.streakFire}>{stats.streak > 0 ? '🔥' : ''}</span>
-            <span style={st.streakText}>{stats.streak} day streak</span>
+            <span style={{ ...st.lifetimeNum, color: stats.lifetimeScore <= 0 ? '#4caf50' : '#ff9800' }}>
+              {stats.lifetimeScore <= 0 ? stats.lifetimeScore : `+${stats.lifetimeScore}`}
+            </span>
+            <span style={st.streakText}>lifetime score</span>
           </div>
 
           <div style={st.watermark}>par-web.vercel.app</div>
@@ -183,7 +185,7 @@ const st: Record<string, React.CSSProperties> = {
     display: 'flex', justifyContent: 'center', alignItems: 'center',
     gap: 6, marginTop: 12,
   },
-  streakFire: { fontSize: 16 },
+  lifetimeNum: { fontSize: 18, fontWeight: 600 },
   streakText: { fontSize: 13, color: '#9e9e9e', fontWeight: 500 },
   watermark: {
     fontSize: 10, color: '#ddd', marginTop: 12, letterSpacing: 1,
