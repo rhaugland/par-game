@@ -116,7 +116,6 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         path: record.path || [], drawing: false, completed: true,
         score: record.score, powerupsUsed: record.powerups_used || {},
       });
-      setShowScore(true);
     } else {
       setGameState(createGameState(p));
     }
