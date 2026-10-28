@@ -18,6 +18,12 @@ import ArcadeModal from './ArcadeModal';
 import LoginModal from './LoginModal';
 import LandingPage from './LandingPage';
 
+function fmtTime(s: number): string {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return m > 0 ? `${m}:${sec.toString().padStart(2, '0')}` : `${sec}s`;
+}
+
 const DARK_KEY = 'par_dark_mode';
 const LANDING_KEY = 'par_seen_landing';
 const TIMER_DURATION = 75; // seconds
@@ -486,9 +492,9 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
             color: !timerStarted ? t.text : timeLeft > 15 ? t.text : timeLeft > 0 ? '#ff9800' : '#ef5350',
             fontSize: 22,
           }}>
-            {!timerStarted ? `${timerDuration}s` :
-              timeLeft > 0 ? `${timeLeft}s` :
-              `+${Math.abs(timeLeft)}s`}
+            {!timerStarted ? fmtTime(timerDuration) :
+              timeLeft > 0 ? fmtTime(timeLeft) :
+              `+${fmtTime(Math.abs(timeLeft))}`}
           </div>
           <div style={{ ...s.lbl, color: t.sub }}>time</div>
         </div>
