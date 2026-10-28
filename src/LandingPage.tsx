@@ -5,26 +5,24 @@ interface Props {
   onPlay: () => void;
 }
 
-// Static 7x7 demo — path hits every special tile so they're all visible
+// Demo grid that looks like a real generated puzzle — no walled border
 // 0=Empty, 1=Wall, 2=Start, 3=End, 4=TriviaWall, 5=Ice, 6=Sand, 7=Trap, 8=Checkpoint
 const DEMO_COLS = 7;
 const DEMO_ROWS = 7;
 const DEMO: number[][] = [
-  [1, 1, 1, 1, 1, 1, 1],
-  [1, 2, 5, 5, 0, 7, 1],
-  [1, 0, 1, 4, 0, 0, 1],
-  [1, 8, 1, 0, 6, 6, 1],
-  [1, 0, 1, 0, 1, 0, 1],
-  [1, 0, 0, 0, 0, 3, 1],
-  [1, 1, 1, 1, 1, 1, 1],
+  [0, 0, 1, 0, 5, 5, 0],
+  [2, 0, 1, 0, 0, 1, 0],
+  [0, 0, 0, 0, 4, 1, 0],
+  [1, 1, 0, 1, 0, 0, 7],
+  [0, 6, 0, 1, 0, 1, 0],
+  [0, 6, 0, 0, 8, 0, 0],
+  [0, 0, 1, 0, 0, 0, 3],
 ];
-// Path: start → slide ice → down → sand → down → right → goal
-// Shows: ice(path), sand(path), checkpoint(path), trivia(adjacent), trap(adjacent)
 const DEMO_PATH: [number, number][] = [
-  [1,1],[1,2],[1,3],[1,4],[2,4],[3,4],[3,3],[4,3],[5,3],[5,4],[5,5],
+  [1,0],[1,1],[2,1],[2,2],[2,3],[3,3],
 ];
-const DEMO_START: [number, number] = [1, 1];
-const DEMO_END: [number, number] = [5, 5];
+const DEMO_START: [number, number] = [1, 0];
+const DEMO_END: [number, number] = [6, 6];
 
 // Renders a single cell exactly like Grid.tsx
 function DemoCell({ type, cellSize, isStart, isEnd, r, c }: {
