@@ -36,6 +36,13 @@ export default function TriviaModal({ question, onResult }: Props) {
           <span style={styles.cat}>{catLabel}</span>
         </div>
         <div style={styles.question}>{question.question}</div>
+        {!revealed && (
+          <div style={styles.stakes}>
+            <span style={{ color: '#4caf50' }}>Correct: wall removed</span>
+            <span style={{ color: '#9e9e9e' }}>|</span>
+            <span style={{ color: '#ef5350' }}>Wrong: +1 stroke</span>
+          </div>
+        )}
         <div style={styles.choices}>
           {question.choices.map((choice, i) => {
             let bg = '#f5f5f7';
@@ -122,6 +129,10 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: 'rgba(0,0,0,0.06)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 12, fontWeight: 700, flexShrink: 0,
+  },
+  stakes: {
+    display: 'flex', justifyContent: 'center', gap: 8,
+    fontSize: 12, fontWeight: 500, marginBottom: 14,
   },
   result: {
     textAlign: 'center', fontSize: 15, fontWeight: 600,
