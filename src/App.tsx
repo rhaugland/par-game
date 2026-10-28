@@ -21,6 +21,8 @@ import LandingPage from './LandingPage';
 const DARK_KEY = 'par_dark_mode';
 const LANDING_KEY = 'par_seen_landing';
 const TIMER_DURATION = 75; // seconds
+const FIRST_TIMER_DURATION = 120; // 2 minutes for first-time players
+const PLAYED_KEY = 'par_has_played';
 const OVERTIME_INTERVAL = 15; // +1 per 15s over
 
 export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
@@ -36,6 +38,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
   const [inventory, setInventory] = useState<Record<string, number>>({});
   const [trapFlash, setTrapFlash] = useState(false);
   const [showLanding, setShowLanding] = useState(() => !localStorage.getItem(LANDING_KEY));
+  const [isFirstPlay] = useState(() => !localStorage.getItem(PLAYED_KEY));
 
   // Timer state
   const [elapsed, setElapsed] = useState(0);
@@ -131,8 +134,9 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     }
   }, [gameState?.completed]);
 
-  const timePenalty = elapsed > TIMER_DURATION ? Math.floor((elapsed - TIMER_DURATION) / OVERTIME_INTERVAL) : 0;
-  const timeLeft = TIMER_DURATION - elapsed;
+  const timerDuration = isFirstPlay ? FIRST_TIMER_DURATION : TIMER_DURATION;
+  const timePenalty = elapsed > timerDuration ? Math.floor((elapsed - timerDuration) / OVERTIME_INTERVAL) : 0;
+  const timeLeft = timerDuration - elapsed;
 
   const handleCellEnter = useCallback((r: number, c: number) => {
     const pz = puzzleRef.current;
@@ -190,6 +194,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
           path: next.path, powerups_used: next.powerupsUsed,
         };
         setGameState(prev => prev ? { ...prev, score: finalScore } : prev);
+        localStorage.setItem(PLAYED_KEY, '1');
         saveRecord(record, isSignedIn).then(({ ticketsEarned }) => {
           if (ticketsEarned > 0) setTickets(t => t + ticketsEarned);
         });
@@ -481,7 +486,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
             color: !timerStarted ? t.text : timeLeft > 15 ? t.text : timeLeft > 0 ? '#ff9800' : '#ef5350',
             fontSize: 22,
           }}>
-            {!timerStarted ? `${TIMER_DURATION}s` :
+            {!timerStarted ? `${timerDuration}s` :
               timeLeft > 0 ? `${timeLeft}s` :
               `+${Math.abs(timeLeft)}s`}
           </div>
