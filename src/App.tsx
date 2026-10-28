@@ -18,6 +18,8 @@ import ArcadeModal from './ArcadeModal';
 import LoginModal from './LoginModal';
 
 const DARK_KEY = 'par_dark_mode';
+const TIMER_DURATION = 60; // seconds
+const OVERTIME_INTERVAL = 15; // +1 per 15s over
 
 export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
@@ -30,8 +32,13 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
   const [dark, setDark] = useState(() => localStorage.getItem(DARK_KEY) === '1');
   const [tickets, setTickets] = useState(0);
   const [inventory, setInventory] = useState<Record<string, number>>({});
+  const [trapFlash, setTrapFlash] = useState(false);
 
-  // Clerk auth — only call hooks when Clerk is enabled (provider is mounted)
+  // Timer state
+  const [elapsed, setElapsed] = useState(0);
+  const [timerStarted, setTimerStarted] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const clerkAuth = clerkEnabled ? useClerkAuth() : null; // eslint-disable-line react-hooks/rules-of-hooks
   const isSignedIn = clerkAuth?.isSignedIn ?? false;
   const clerkFirstName = clerkAuth?.firstName ?? null;
@@ -39,12 +46,13 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
 
   const stateRef = useRef<GameState | null>(null);
   stateRef.current = gameState;
+  const puzzleRef = useRef<Puzzle | null>(null);
+  puzzleRef.current = puzzle;
 
   useEffect(() => {
     if (getToken) setAuthTokenGetter(getToken);
   }, [getToken]);
 
-  // Load tickets + inventory
   useEffect(() => {
     if (isSignedIn) {
       fetchProfile().then(p => {
@@ -60,7 +68,6 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     }
   }, [isSignedIn]);
 
-  // Sync records on login
   useEffect(() => {
     if (isSignedIn) {
       syncRecordsFromApi().then(() => {
@@ -68,9 +75,9 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         const record = getTodayRecord(seed);
         if (record?.completed && puzzle) {
           setGameState({
+            ...createGameState(puzzle),
             path: record.path || [], drawing: false, completed: true,
-            score: record.score, unlockedCells: new Set(), failedCells: new Set(),
-            triviaPenalty: 0, powerupsUsed: record.powerups_used || {}, bombMode: false, parPath: null,
+            score: record.score, powerupsUsed: record.powerups_used || {},
           });
         }
       });
@@ -93,9 +100,9 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     const record = getTodayRecord(seed);
     if (record?.completed) {
       setGameState({
+        ...createGameState(p),
         path: record.path || [], drawing: false, completed: true,
-        score: record.score, unlockedCells: new Set(), failedCells: new Set(),
-        triviaPenalty: 0, powerupsUsed: record.powerups_used || {}, bombMode: false, parPath: null,
+        score: record.score, powerupsUsed: record.powerups_used || {},
       });
       setShowScore(true);
     } else {
@@ -103,40 +110,74 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     }
   }, []);
 
+  // Timer management
+  useEffect(() => {
+    if (timerStarted && !gameState?.completed) {
+      timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [timerStarted, gameState?.completed]);
+
+  // Stop timer on completion
+  useEffect(() => {
+    if (gameState?.completed && timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, [gameState?.completed]);
+
+  const timePenalty = elapsed > TIMER_DURATION ? Math.floor((elapsed - TIMER_DURATION) / OVERTIME_INTERVAL) : 0;
+  const timeLeft = TIMER_DURATION - elapsed;
+
   const handleCellEnter = useCallback((r: number, c: number) => {
-    if (!puzzle) return;
+    const pz = puzzleRef.current;
+    if (!pz) return;
     const gs = stateRef.current;
     if (!gs || gs.completed) return;
 
-    // Bomb mode: tapping a wall destroys it
+    // Start timer on first move
+    if (gs.path.length === 1) {
+      setTimerStarted(true);
+    }
+
+    // Bomb mode
     if (gs.bombMode) {
-      const cell = puzzle.grid[r][c];
+      const cell = pz.grid[r][c];
       if (cell.type === 1 /* Wall */) {
-        puzzle.grid[r][c] = { type: 0 /* Empty */ };
+        pz.grid[r][c] = { type: 0 /* Empty */ };
         setGameState(s => s ? { ...s, bombMode: false } : s);
       }
       return;
     }
 
-    const next = addToPath(gs, r, c, puzzle);
+    const next = addToPath(gs, r, c, pz);
     if (next !== gs) {
+      // Check if trap was triggered (path reset)
+      if (next.trapPenalty > gs.trapPenalty) {
+        setTrapFlash(true);
+        setTimeout(() => setTrapFlash(false), 1500);
+      }
+
       setGameState(next);
       if (next.completed) {
-        const moves = getMoves(next);
+        // Add time penalty to score
+        const finalScore = (next.score ?? 0) + timePenalty;
+        const moves = getMoves(next, pz);
         const record = {
-          date: todaySeed(), moves, par: puzzle.par,
-          score: next.score ?? 0, completed: true,
+          date: todaySeed(), moves, par: pz.par,
+          score: finalScore, completed: true,
           path: next.path, powerups_used: next.powerupsUsed,
         };
+        setGameState(prev => prev ? { ...prev, score: finalScore } : prev);
         saveRecord(record, isSignedIn).then(({ ticketsEarned }) => {
-          if (ticketsEarned > 0) {
-            setTickets(t => t + ticketsEarned);
-          }
+          if (ticketsEarned > 0) setTickets(t => t + ticketsEarned);
         });
         setTimeout(() => setShowScore(true), 400);
       }
     }
-  }, [puzzle, isSignedIn]);
+  }, [isSignedIn, timePenalty]);
 
   const handleTriviaTap = useCallback((_r: number, _c: number, question: TriviaQuestion) => {
     setTriviaTarget({ r: _r, c: _c, question });
@@ -189,7 +230,6 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     const used = gameState.powerupsUsed[type] || 0;
     if (owned <= 0 || used >= POWERUP_LIMITS[type]) return;
 
-    // Deduct from inventory
     let newInv: Record<string, number>;
     if (isSignedIn) {
       try {
@@ -232,7 +272,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
       }
       case 'bomb': {
         setGameState(s => s ? { ...s, bombMode: true, powerupsUsed: newUsed } : s);
-        setShowArcade(false); // close modal so they can tap the wall
+        setShowArcade(false);
         break;
       }
       case 'puzzle_retry': {
@@ -241,6 +281,8 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
           unlockedCells: gameState.unlockedCells,
           failedCells: gameState.failedCells,
           triviaPenalty: gameState.triviaPenalty,
+          trapPenalty: gameState.trapPenalty,
+          triggeredTraps: gameState.triggeredTraps,
           powerupsUsed: newUsed,
         });
         setShowArcade(false);
@@ -262,9 +304,9 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     const record = getTodayRecord(seed);
     if (record?.completed) {
       setGameState({
+        ...createGameState(p),
         path: record.path || [], drawing: false, completed: true,
-        score: record.score, unlockedCells: new Set(), failedCells: new Set(),
-        triviaPenalty: 0, powerupsUsed: record.powerups_used || {}, bombMode: false, parPath: null,
+        score: record.score, powerupsUsed: record.powerups_used || {},
       });
     } else {
       setGameState(createGameState(p));
@@ -278,10 +320,16 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
   if (!puzzle || !gameState) return null;
 
   const todayRecord = getTodayRecord(todaySeed());
-  const moves = gameState.completed && todayRecord ? todayRecord.moves : getMoves(gameState);
-  const penalty = gameState.triviaPenalty;
-  const displayScore = gameState.completed && todayRecord ? todayRecord.score : (moves + penalty) - puzzle.par;
+  const moves = gameState.completed && todayRecord ? todayRecord.moves : getMoves(gameState, puzzle);
+  const penalties = gameState.triviaPenalty + gameState.trapPenalty + (gameState.completed ? 0 : timePenalty);
+  const displayScore = gameState.completed && todayRecord
+    ? todayRecord.score
+    : (moves + penalties) - puzzle.par;
   const diff = displayScore;
+
+  // Checkpoint status
+  const cpTotal = puzzle.checkpoints.length;
+  const cpDone = gameState.checkpointsVisited.size;
 
   const t = {
     bg: dark ? '#121212' : '#fff',
@@ -351,6 +399,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         </div>
       </div>
 
+      {/* Stats strip */}
       <div style={s.strip}>
         <div style={s.col}>
           <div style={{ ...s.num, color: t.text }}>{puzzle.par}</div>
@@ -358,8 +407,11 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         </div>
         <div style={{ ...s.divider, background: t.divider }} />
         <div style={s.col}>
-          <div style={{ ...s.num, color: t.text }}>{moves}{penalty > 0 ? <span style={{ color: '#ef5350', fontSize: 16 }}> +{penalty}</span> : ''}</div>
-          <div style={{ ...s.lbl, color: t.sub }}>moves{penalty > 0 ? ' + penalty' : ''}</div>
+          <div style={{ ...s.num, color: t.text }}>
+            {moves}
+            {penalties > 0 ? <span style={{ color: '#ef5350', fontSize: 16 }}> +{penalties}</span> : ''}
+          </div>
+          <div style={{ ...s.lbl, color: t.sub }}>moves{penalties > 0 ? ' + pen' : ''}</div>
         </div>
         <div style={{ ...s.divider, background: t.divider }} />
         <div style={s.col}>
@@ -368,13 +420,30 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
           </div>
           <div style={{ ...s.lbl, color: t.sub }}>+/-</div>
         </div>
+        <div style={{ ...s.divider, background: t.divider }} />
+        <div style={s.col}>
+          <div style={{
+            ...s.num,
+            color: !timerStarted ? t.text : timeLeft > 15 ? t.text : timeLeft > 0 ? '#ff9800' : '#ef5350',
+            fontSize: 22,
+          }}>
+            {!timerStarted ? `${TIMER_DURATION}s` :
+              timeLeft > 0 ? `${timeLeft}s` :
+              `+${Math.abs(timeLeft)}s`}
+          </div>
+          <div style={{ ...s.lbl, color: t.sub }}>time</div>
+        </div>
       </div>
 
+      {/* Hints */}
       {!gameState.completed && moves === 0 && !gameState.bombMode && (
-        <div style={{ ...s.hint, color: t.sub }}>Draw a path from the green dot to the goal</div>
+        <div style={{ ...s.hint, color: t.sub }}>Draw a path from start to goal</div>
       )}
       {gameState.bombMode && (
-        <div style={{ ...s.hint, color: '#ff9800', fontWeight: 600 }}>💣 Tap a wall to destroy it</div>
+        <div style={{ ...s.hint, color: '#ff9800', fontWeight: 600 }}>Tap a wall to destroy it</div>
+      )}
+      {trapFlash && (
+        <div style={{ ...s.hint, color: '#c62828', fontWeight: 600 }}>Trap! Back to start (+2)</div>
       )}
       {gameState.completed && (
         <div style={{ ...s.hint, color: t.sub }}>
@@ -382,6 +451,15 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         </div>
       )}
 
+      {/* Checkpoint status */}
+      {cpTotal > 0 && !gameState.completed && (
+        <div style={{ ...s.hint, color: t.sub2, fontSize: 12, marginBottom: 8 }}>
+          Checkpoints: {cpDone}/{cpTotal}
+          {cpDone < cpTotal && ' — visit all before reaching goal'}
+        </div>
+      )}
+
+      {/* Grid */}
       <div style={{ ...s.gridWrap, boxShadow: t.gridShadow, position: 'relative' }}>
         <Grid
           puzzle={puzzle}
@@ -421,19 +499,16 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         )}
       </div>
 
+      {/* Legend */}
       <div style={s.legend}>
-        <span style={{ color: t.sub2, fontSize: 12 }}>
-          Tap <b style={{ color: t.text }}>?</b> blocks for trivia
-          <span style={{ color: t.sub, margin: '0 6px' }}>|</span>
-          <b>E</b> Entertainment
+        <span style={{ color: t.sub2, fontSize: 11, lineHeight: 1.6 }}>
+          <b style={{ color: t.text }}>?</b> Trivia
           <span style={{ color: t.sub, margin: '0 4px' }}>&middot;</span>
-          <b>H</b> History
+          <span style={{ color: '#0288d1' }}>Ice</span> = can't turn
           <span style={{ color: t.sub, margin: '0 4px' }}>&middot;</span>
-          <b>S</b> Sports
+          <span style={{ color: '#e65100' }}>Sand</span> = 2x moves
           <span style={{ color: t.sub, margin: '0 4px' }}>&middot;</span>
-          <b>W</b> World
-          <span style={{ color: t.sub, margin: '0 4px' }}>&middot;</span>
-          <b>Sc</b> Science
+          <span style={{ color: '#c62828' }}>!</span> Trap = back to start
         </span>
       </div>
 
@@ -489,18 +564,18 @@ const s: Record<string, React.CSSProperties> = {
   },
   title: { fontSize: 36, fontWeight: 200, letterSpacing: 10 },
   day: { fontSize: 13, letterSpacing: 2, marginTop: 2 },
-  strip: { display: 'flex', alignItems: 'center', margin: '20px 0' },
-  col: { textAlign: 'center', padding: '0 24px' },
-  num: { fontSize: 28, fontWeight: 300 },
-  lbl: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 2, marginTop: 2 },
-  divider: { width: 1, height: 32 },
-  hint: { fontSize: 14, marginBottom: 16, letterSpacing: 0.3 },
+  strip: { display: 'flex', alignItems: 'center', margin: '16px 0 12px' },
+  col: { textAlign: 'center', padding: '0 16px' },
+  num: { fontSize: 24, fontWeight: 300 },
+  lbl: { fontSize: 9, textTransform: 'uppercase', letterSpacing: 2, marginTop: 2 },
+  divider: { width: 1, height: 28 },
+  hint: { fontSize: 13, marginBottom: 10, letterSpacing: 0.3, textAlign: 'center' },
   gridWrap: { borderRadius: 12 },
   legend: {
-    marginTop: 16, padding: '0 20px',
+    marginTop: 12, padding: '0 20px',
     textAlign: 'center', lineHeight: 1.8,
   },
   loginHint: {
-    fontSize: 13, marginTop: 12, marginBottom: 20,
+    fontSize: 13, marginTop: 8, marginBottom: 20,
   },
 };

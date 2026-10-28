@@ -1,27 +1,20 @@
 import { Cell, CellType, Puzzle, TriviaQuestion } from './types';
 import { createRng, todaySeed } from './seed';
-import { solve, solveWithOpenCells } from './solver';
+import { solve, solvePath, solveWithOpenCells, solveWithFeatures } from './solver';
 import { pickTriviaQuestions } from './trivia';
 
-// Traditional recursive backtracker maze with 2-cell jumps.
-// Grid uses odd indices for passages, even indices for walls.
-// This guarantees long winding paths with many dead ends.
-
-const GRID_SIZE = 15; // 15x15 display grid = 7x7 logical maze
+const GRID_SIZE = 15;
 
 export function generatePuzzle(seed?: string): Puzzle {
   const s = seed || todaySeed();
   const rng = createRng(s);
 
-  // Try multiple mazes and pick the best one
   let best: Puzzle | null = null;
   let bestScore = -Infinity;
 
   for (let attempt = 0; attempt < 50; attempt++) {
     const puzzle = buildMaze(rng);
     if (!puzzle) continue;
-
-    // Score: higher par + more dead ends = harder = better
     const score = puzzle.par * 2 + countDeadEnds(puzzle);
     if (score > bestScore) {
       bestScore = score;
@@ -29,55 +22,46 @@ export function generatePuzzle(seed?: string): Puzzle {
     }
   }
 
-  if (best) return placeTriviaWalls(best, rng);
+  if (best) {
+    const withTrivia = placeTriviaWalls(best, rng);
+    return placeSpecialTiles(withTrivia, rng);
+  }
 
-  // Should never happen, but just in case
-  return placeTriviaWalls(buildMaze(rng, true)!, rng);
+  const fallback = placeTriviaWalls(buildMaze(rng, true)!, rng);
+  return placeSpecialTiles(fallback, rng);
 }
 
 function buildMaze(rng: () => number, force = false): Puzzle | null {
   const rows = GRID_SIZE;
   const cols = GRID_SIZE;
-  const logicalRows = Math.floor((rows - 1) / 2); // 7
-  const logicalCols = Math.floor((cols - 1) / 2); // 7
+  const logicalRows = Math.floor((rows - 1) / 2);
+  const logicalCols = Math.floor((cols - 1) / 2);
 
-  // Start with all walls
   const grid: Cell[][] = Array.from({ length: rows }, () =>
     Array.from({ length: cols }, () => ({ type: CellType.Wall }))
   );
 
-  // Open all passage cells (odd indices)
   for (let lr = 0; lr < logicalRows; lr++) {
     for (let lc = 0; lc < logicalCols; lc++) {
       grid[lr * 2 + 1][lc * 2 + 1] = { type: CellType.Empty };
     }
   }
 
-  // Recursive backtracker: carve connections between passage cells
   const visited = new Set<string>();
   const dirs: [number, number][] = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 
   function carve(lr: number, lc: number) {
     visited.add(`${lr},${lc}`);
-
-    // Shuffle directions
     const shuffled = [...dirs].sort(() => rng() - 0.5);
-
     for (const [dr, dc] of shuffled) {
       const nlr = lr + dr, nlc = lc + dc;
       if (nlr < 0 || nlr >= logicalRows || nlc < 0 || nlc >= logicalCols) continue;
       if (visited.has(`${nlr},${nlc}`)) continue;
-
-      // Remove wall between current and neighbor
-      const wallR = lr * 2 + 1 + dr;
-      const wallC = lc * 2 + 1 + dc;
-      grid[wallR][wallC] = { type: CellType.Empty };
-
+      grid[lr * 2 + 1 + dr][lc * 2 + 1 + dc] = { type: CellType.Empty };
       carve(nlr, nlc);
     }
   }
 
-  // Start carving from a random corner
   const startCorner = Math.floor(rng() * 4);
   const corners: [number, number][] = [
     [0, 0], [0, logicalCols - 1],
@@ -85,19 +69,14 @@ function buildMaze(rng: () => number, force = false): Puzzle | null {
   ];
   carve(corners[startCorner][0], corners[startCorner][1]);
 
-  // Place start and end at opposite logical corners
   const startIdx = Math.floor(rng() * 4);
-  const endIdx = (startIdx + 2) % 4; // opposite corner
-  const startLogical = corners[startIdx];
-  const endLogical = corners[endIdx];
-
-  const start: [number, number] = [startLogical[0] * 2 + 1, startLogical[1] * 2 + 1];
-  const end: [number, number] = [endLogical[0] * 2 + 1, endLogical[1] * 2 + 1];
+  const endIdx = (startIdx + 2) % 4;
+  const start: [number, number] = [corners[startIdx][0] * 2 + 1, corners[startIdx][1] * 2 + 1];
+  const end: [number, number] = [corners[endIdx][0] * 2 + 1, corners[endIdx][1] * 2 + 1];
 
   grid[start[0]][start[1]] = { type: CellType.Start };
   grid[end[0]][end[1]] = { type: CellType.End };
 
-  // Find all walls between two open cells — these are potential shortcuts/loops
   const bridgeWalls: [number, number][] = [];
   for (let r = 1; r < rows - 1; r++) {
     for (let c = 1; c < cols - 1; c++) {
@@ -108,9 +87,8 @@ function buildMaze(rng: () => number, force = false): Puzzle | null {
     }
   }
 
-  // Shuffle and split: some become loops (open), rest stay as walls (trivia candidates)
   bridgeWalls.sort(() => rng() - 0.5);
-  const loopCount = Math.min(Math.floor(rng() * 3) + 2, bridgeWalls.length); // 2-4 loops
+  const loopCount = Math.min(Math.floor(rng() * 3) + 2, bridgeWalls.length);
   for (let i = 0; i < loopCount; i++) {
     const [wr, wc] = bridgeWalls[i];
     grid[wr][wc] = { type: CellType.Empty };
@@ -118,11 +96,9 @@ function buildMaze(rng: () => number, force = false): Puzzle | null {
 
   const par = solve(grid, start, end, rows, cols);
   if (par === null) return null;
-
-  // Quality filter (relaxed — the maze algorithm naturally produces good puzzles)
   if (!force && par < 20) return null;
 
-  return { grid, rows, cols, start, end, par, triviaQuestions: new Map() };
+  return { grid, rows, cols, start, end, par, triviaQuestions: new Map(), checkpoints: [] };
 }
 
 function countDeadEnds(puzzle: Puzzle): number {
@@ -131,8 +107,7 @@ function countDeadEnds(puzzle: Puzzle): number {
   let count = 0;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const t = grid[r][c].type;
-      if (t === CellType.Wall) continue;
+      if (grid[r][c].type === CellType.Wall) continue;
       let openAdj = 0;
       for (const [dr, dc] of dirs) {
         const nr = r + dr, nc = c + dc;
@@ -144,27 +119,20 @@ function countDeadEnds(puzzle: Puzzle): number {
   return count;
 }
 
-// Place trivia walls ONLY on genuine shortcut positions.
 function placeTriviaWalls(puzzle: Puzzle, rng: () => number): Puzzle {
   const { grid, rows, cols, start, end, par } = puzzle;
   const dirs: [number, number][] = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 
   const shortcuts: { r: number; c: number; savings: number }[] = [];
-
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       if (grid[r][c].type !== CellType.Wall) continue;
-
-      // Must have at least 2 adjacent open cells
       let openNeighbors = 0;
       for (const [dr, dc] of dirs) {
         const nr = r + dr, nc = c + dc;
-        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].type !== CellType.Wall) {
-          openNeighbors++;
-        }
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].type !== CellType.Wall) openNeighbors++;
       }
       if (openNeighbors < 2) continue;
-
       const openSet = new Set([`${r},${c}`]);
       const newPar = solveWithOpenCells(grid, start, end, rows, cols, openSet);
       if (newPar !== null && newPar < par) {
@@ -173,10 +141,8 @@ function placeTriviaWalls(puzzle: Puzzle, rng: () => number): Puzzle {
     }
   }
 
-  // Sort by savings (best shortcuts first)
   shortcuts.sort((a, b) => b.savings - a.savings);
 
-  // Also find chain pairs
   const chainPairs: { cells: [number, number][]; savings: number }[] = [];
   for (const s of shortcuts) {
     for (const [dr, dc] of dirs) {
@@ -184,7 +150,6 @@ function placeTriviaWalls(puzzle: Puzzle, rng: () => number): Puzzle {
       if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
       if (grid[nr][nc].type !== CellType.Wall) continue;
       if (nr < s.r || (nr === s.r && nc < s.c)) continue;
-
       const openSet = new Set([`${s.r},${s.c}`, `${nr},${nc}`]);
       const newPar = solveWithOpenCells(grid, start, end, rows, cols, openSet);
       if (newPar !== null && newPar < par) {
@@ -198,11 +163,9 @@ function placeTriviaWalls(puzzle: Puzzle, rng: () => number): Puzzle {
   }
 
   chainPairs.sort((a, b) => b.savings - a.savings);
-
   const selected: [number, number][] = [];
   const usedCells = new Set<string>();
 
-  // Place 1 chain if available
   if (chainPairs.length > 0) {
     for (const [r, c] of chainPairs[0].cells) {
       selected.push([r, c]);
@@ -210,7 +173,6 @@ function placeTriviaWalls(puzzle: Puzzle, rng: () => number): Puzzle {
     }
   }
 
-  // Fill with individual shortcuts (target 3-5 total)
   const targetCount = Math.floor(rng() * 3) + 3;
   for (const s of shortcuts) {
     if (selected.length >= targetCount) break;
@@ -232,4 +194,139 @@ function placeTriviaWalls(puzzle: Puzzle, rng: () => number): Puzzle {
   }
 
   return { ...puzzle, triviaQuestions };
+}
+
+// Place ice, sand, traps, and checkpoints after trivia walls
+function placeSpecialTiles(puzzle: Puzzle, rng: () => number): Puzzle {
+  const { grid, rows, cols, start, end } = puzzle;
+  const dirs: [number, number][] = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+  // Find all empty cells (not start/end/wall/trivia)
+  const emptyCells: [number, number][] = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (grid[r][c].type === CellType.Empty) emptyCells.push([r, c]);
+    }
+  }
+
+  // Get optimal path for placement decisions
+  const optPath = solvePath(grid, start, end, rows, cols);
+  const pathSet = new Set(optPath?.map(([r, c]) => `${r},${c}`) || []);
+  const offPath = emptyCells.filter(([r, c]) => !pathSet.has(`${r},${c}`));
+
+  // --- CHECKPOINTS (2, spread apart, off the optimal path) ---
+  const checkpoints: [number, number][] = [];
+  const shuffledOff = [...offPath].sort(() => rng() - 0.5);
+
+  for (const [r, c] of shuffledOff) {
+    if (checkpoints.length >= 2) break;
+    const tooClose = checkpoints.some(([cr, cc]) =>
+      Math.abs(cr - r) + Math.abs(cc - c) < 5
+    );
+    if (tooClose) continue;
+    const nearStart = Math.abs(r - start[0]) + Math.abs(c - start[1]) < 3;
+    const nearEnd = Math.abs(r - end[0]) + Math.abs(c - end[1]) < 3;
+    if (nearStart || nearEnd) continue;
+    // Must have at least 2 open neighbors (not a dead end)
+    let openN = 0;
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].type !== CellType.Wall) openN++;
+    }
+    if (openN < 2) continue;
+    checkpoints.push([r, c]);
+    grid[r][c] = { type: CellType.Checkpoint, checkpointIndex: checkpoints.length - 1 };
+  }
+
+  // --- ICE PATCHES (find corridors of 3+ empty cells in a line) ---
+  const corridors: { cells: [number, number][]; }[] = [];
+
+  // Horizontal corridors
+  for (let r = 0; r < rows; r++) {
+    let run: [number, number][] = [];
+    for (let c = 0; c < cols; c++) {
+      if (grid[r][c].type === CellType.Empty) {
+        run.push([r, c]);
+      } else {
+        if (run.length >= 3) corridors.push({ cells: [...run] });
+        run = [];
+      }
+    }
+    if (run.length >= 3) corridors.push({ cells: [...run] });
+  }
+
+  // Vertical corridors
+  for (let c = 0; c < cols; c++) {
+    let run: [number, number][] = [];
+    for (let r = 0; r < rows; r++) {
+      if (grid[r][c].type === CellType.Empty) {
+        run.push([r, c]);
+      } else {
+        if (run.length >= 3) corridors.push({ cells: [...run] });
+        run = [];
+      }
+    }
+    if (run.length >= 3) corridors.push({ cells: [...run] });
+  }
+
+  corridors.sort(() => rng() - 0.5);
+  let icePatches = 0;
+  for (const corridor of corridors) {
+    if (icePatches >= 2) break;
+    // Ice the middle cells (leave ends as entry/exit)
+    const inner = corridor.cells.slice(1, -1);
+    if (inner.length < 2) continue;
+    let anyUsed = false;
+    for (const [ir, ic] of inner) {
+      if (grid[ir][ic].type !== CellType.Empty) { anyUsed = true; break; }
+    }
+    if (anyUsed) continue;
+    for (const [ir, ic] of inner) {
+      grid[ir][ic] = { type: CellType.Ice };
+    }
+    icePatches++;
+  }
+
+  // --- SAND CELLS (2-3, preferably on the optimal path) ---
+  const onPath = emptyCells.filter(([r, c]) =>
+    pathSet.has(`${r},${c}`) && grid[r][c].type === CellType.Empty
+  );
+  const shuffledOnPath = [...onPath].sort(() => rng() - 0.5);
+  let sandPlaced = 0;
+  const sandTarget = Math.floor(rng() * 2) + 2;
+  for (const [r, c] of shuffledOnPath) {
+    if (sandPlaced >= sandTarget) break;
+    grid[r][c] = { type: CellType.Sand };
+    sandPlaced++;
+  }
+
+  // --- TRAP CELLS (1-2, visible, off the optimal path) ---
+  let trapPlaced = 0;
+  const trapTarget = Math.floor(rng() * 2) + 1;
+  for (const [r, c] of shuffledOff) {
+    if (trapPlaced >= trapTarget) break;
+    if (grid[r][c].type !== CellType.Empty) continue;
+    let openN = 0;
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols &&
+        grid[nr][nc].type !== CellType.Wall && grid[nr][nc].type !== CellType.TriviaWall) openN++;
+    }
+    if (openN < 2) continue;
+    grid[r][c] = { type: CellType.Trap };
+    trapPlaced++;
+  }
+
+  // --- RECALCULATE PAR with features ---
+  const newPar = solveWithFeatures(grid, start, end, rows, cols, checkpoints);
+  if (newPar === null) {
+    // Checkpoints made puzzle unsolvable — remove them and retry
+    for (const [r, c] of checkpoints) {
+      grid[r][c] = { type: CellType.Empty };
+    }
+    const basePar = solveWithFeatures(grid, start, end, rows, cols, []);
+    return { ...puzzle, par: basePar ?? puzzle.par, checkpoints: [] };
+  }
+
+  return { ...puzzle, par: newPar, checkpoints };
 }

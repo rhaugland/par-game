@@ -66,7 +66,7 @@ export default function ScoreModal({ visible, gameState, puzzle, onClose, isSign
   const record = getTodayRecord(todaySeed());
   const score = gameState.score ?? record?.score ?? 0;
   const label = getScoreLabel(score);
-  const moves = record?.moves ?? getMoves(gameState);
+  const moves = record?.moves ?? getMoves(gameState, puzzle);
   const good = score <= 0;
   const scoreColor = good ? '#4caf50' : '#ff9800';
 

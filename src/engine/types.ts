@@ -4,10 +4,15 @@ export enum CellType {
   Start = 2,
   End = 3,
   TriviaWall = 4,
+  Ice = 5,
+  Sand = 6,
+  Trap = 7,
+  Checkpoint = 8,
 }
 
 export interface Cell {
   type: CellType;
+  checkpointIndex?: number;
 }
 
 export type TriviaCategory = 'entertainment' | 'world' | 'history' | 'sports' | 'science';
@@ -26,7 +31,8 @@ export interface Puzzle {
   start: [number, number];
   end: [number, number];
   par: number;
-  triviaQuestions: Map<string, TriviaQuestion>; // "r,c" -> question
+  triviaQuestions: Map<string, TriviaQuestion>;
+  checkpoints: [number, number][];
 }
 
 export type PowerupType = 'backspace' | 'trivia_retry' | 'bomb' | 'puzzle_retry' | 'par_path';
@@ -52,12 +58,15 @@ export interface GameState {
   drawing: boolean;
   completed: boolean;
   score: number | null;
-  unlockedCells: Set<string>; // "r,c" of trivia walls answered correctly
-  failedCells: Set<string>; // "r,c" of trivia walls answered wrong
-  triviaPenalty: number; // +1 per wrong trivia answer
-  powerupsUsed: Record<string, number>; // e.g. { bomb: 1, backspace: 2 }
-  bombMode: boolean; // true when selecting a wall to bomb
-  parPath: [number, number][] | null; // optimal path to show as ghost
+  unlockedCells: Set<string>;
+  failedCells: Set<string>;
+  triviaPenalty: number;
+  powerupsUsed: Record<string, number>;
+  bombMode: boolean;
+  parPath: [number, number][] | null;
+  checkpointsVisited: Set<number>;
+  triggeredTraps: Set<string>;
+  trapPenalty: number;
 }
 
 export interface DailyRecord {

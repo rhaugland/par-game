@@ -45,13 +45,11 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
 
   const handlePointerDown = useCallback((e: PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
-    // Capture all future pointer events to this element
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
     const c = getCell(e.clientX, e.clientY);
     if (!c) return;
 
-    // Check trivia tap first
     const cell = puzzle.grid[c[0]][c[1]];
     const key = `${c[0]},${c[1]}`;
     if (cell.type === CellType.TriviaWall && !gameState.completed &&
@@ -111,24 +109,37 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
         WebkitUserSelect: 'none', cursor: 'pointer',
       }}
     >
-      {/* Grid cells — all pointer-events: none so events pass to grid div */}
       {puzzle.grid.map((row, r) =>
         row.map((cell, c) => {
           const isStart = puzzle.start[0] === r && puzzle.start[1] === c;
           const isEnd = puzzle.end[0] === r && puzzle.end[1] === c;
           const isWall = cell.type === CellType.Wall;
           const isTrivia = cell.type === CellType.TriviaWall;
+          const isIce = cell.type === CellType.Ice;
+          const isSand = cell.type === CellType.Sand;
+          const isTrap = cell.type === CellType.Trap;
+          const isCheckpoint = cell.type === CellType.Checkpoint;
           const cellKey = `${r},${c}`;
           const isUnlocked = gameState.unlockedCells.has(cellKey);
           const isFailed = gameState.failedCells.has(cellKey);
           const inPath = pathSet.has(cellKey);
           const triviaQ = puzzle.triviaQuestions.get(cellKey);
+          const trapTriggered = gameState.triggeredTraps.has(cellKey);
+          const cpVisited = isCheckpoint && cell.checkpointIndex !== undefined &&
+            gameState.checkpointsVisited.has(cell.checkpointIndex);
 
           let bg = '#f0f1f3';
           if (isWall) bg = '#1a1a2e';
           if (isTrivia && !isUnlocked && !isFailed) bg = '#2a2a3e';
           if (isTrivia && isFailed) bg = '#1a1a2e';
           if (isTrivia && isUnlocked) bg = '#f0f1f3';
+          if (isIce) bg = '#b3e5fc';
+          if (isSand) bg = '#ffe0b2';
+          if (isTrap && !trapTriggered) bg = '#ffcdd2';
+          if (isTrap && trapTriggered) bg = '#f0f1f3';
+          if (isCheckpoint) bg = cpVisited ? '#c8e6c9' : '#e0e0e0';
+
+          const isSolid = isWall || (isTrivia && !isUnlocked);
 
           return (
             <div
@@ -138,28 +149,70 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
                 left: c * cellSize, top: r * cellSize,
                 width: cellSize, height: cellSize,
                 backgroundColor: bg,
-                borderRadius: (isWall || (isTrivia && !isUnlocked)) ? 4 : 0,
+                borderRadius: isSolid ? 4 : 0,
                 display: 'flex', justifyContent: 'center', alignItems: 'center',
                 boxSizing: 'border-box',
-                border: (isWall || (isTrivia && !isUnlocked)) ? 'none' : '1px solid rgba(0,0,0,0.06)',
+                border: isSolid ? 'none' : '1px solid rgba(0,0,0,0.06)',
                 pointerEvents: 'none',
                 overflow: 'hidden',
               }}
             >
+              {/* Trivia label */}
               {isTrivia && !isUnlocked && !isFailed && (
                 <span style={{
                   color: '#fff', fontSize: Math.max(cellSize * 0.32, 11),
-                  fontWeight: 700, lineHeight: 1, opacity: 0.9,
-                  letterSpacing: -0.5,
+                  fontWeight: 700, lineHeight: 1, opacity: 0.9, letterSpacing: -0.5,
                 }}>
                   {triviaQ ? { entertainment: 'E', world: 'W', history: 'H', sports: 'S', science: 'Sc' }[triviaQ.category] : ''}?
                 </span>
               )}
               {isTrivia && isFailed && (
-                <span style={{ fontSize: Math.max(cellSize * 0.3, 10), color: '#ef5350', fontWeight: 800 }}>
-                  +1
-                </span>
+                <span style={{ fontSize: Math.max(cellSize * 0.3, 10), color: '#ef5350', fontWeight: 800 }}>+1</span>
               )}
+
+              {/* Ice indicator */}
+              {isIce && (
+                <svg width={cellSize * 0.5} height={cellSize * 0.5} viewBox="0 0 16 16" fill="none" style={{ opacity: 0.4 }}>
+                  <path d="M8 2v12M2 8h12M4 4l8 8M12 4l-8 8" stroke="#0288d1" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              )}
+
+              {/* Sand dots */}
+              {isSand && (
+                <svg width={cellSize * 0.5} height={cellSize * 0.5} viewBox="0 0 16 16" fill="#e65100" style={{ opacity: 0.35 }}>
+                  <circle cx="4" cy="4" r="1.5" /><circle cx="12" cy="4" r="1.5" />
+                  <circle cx="8" cy="8" r="1.5" />
+                  <circle cx="4" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" />
+                </svg>
+              )}
+
+              {/* Trap icon */}
+              {isTrap && !trapTriggered && (
+                <span style={{
+                  fontSize: Math.max(cellSize * 0.4, 12), fontWeight: 800,
+                  color: '#c62828', lineHeight: 1,
+                }}>!</span>
+              )}
+
+              {/* Checkpoint marker */}
+              {isCheckpoint && cell.checkpointIndex !== undefined && (
+                <div style={{
+                  width: cellSize * 0.6, height: cellSize * 0.6,
+                  borderRadius: '50%',
+                  backgroundColor: cpVisited ? '#4caf50' : '#9e9e9e',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: cpVisited ? '0 0 6px rgba(76,175,80,0.5)' : 'none',
+                }}>
+                  <span style={{
+                    color: '#fff', fontSize: Math.max(cellSize * 0.3, 10),
+                    fontWeight: 800, lineHeight: 1,
+                  }}>
+                    {cpVisited ? '\u2713' : cell.checkpointIndex + 1}
+                  </span>
+                </div>
+              )}
+
+              {/* Start dot */}
               {isStart && !inPath && (
                 <div style={{
                   width: 22, height: 22, borderRadius: 11,
@@ -167,11 +220,10 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
                   boxShadow: '0 0 10px rgba(76,175,80,0.4)',
                 }} />
               )}
+
+              {/* End goal */}
               {isEnd && !inPath && (
-                <div style={{
-                  padding: '4px 8px', borderRadius: 4,
-                  backgroundColor: '#ff5252',
-                }}>
+                <div style={{ padding: '4px 8px', borderRadius: 4, backgroundColor: '#ff5252' }}>
                   <span style={{ color: '#fff', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>GOAL</span>
                 </div>
               )}
@@ -180,7 +232,7 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
         })
       )}
 
-      {/* Paint stripe SVG — pointer-events none via SVG attribute */}
+      {/* Path SVG */}
       {pathPoints.length > 0 && (
         <svg
           width={gridW} height={gridH}
