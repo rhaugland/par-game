@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { PowerupType, POWERUP_COSTS, POWERUP_LIMITS } from './engine/types';
 
 interface Props {
@@ -8,7 +9,7 @@ interface Props {
   powerupsUsed: Record<string, number>;
   completed: boolean;
   hasFailed: boolean;
-  onBuy: (type: PowerupType) => void;
+  onBuy: (type: PowerupType) => void | Promise<void>;
   onUse: (type: PowerupType) => void;
   dark: boolean;
 }
@@ -120,6 +121,10 @@ const POWERUPS: { type: PowerupType; label: string; icon: (color: string) => Rea
 ];
 
 export default function ArcadeModal({ visible, onClose, tickets, inventory, powerupsUsed, completed, hasFailed, onBuy, onUse, dark }: Props) {
+  const [selected, setSelected] = useState<PowerupType | null>(null);
+  const [qty, setQty] = useState(1);
+  const [buying, setBuying] = useState(false);
+
   if (!visible) return null;
 
   const bg = dark ? '#1a1a1a' : '#fff';
@@ -128,6 +133,26 @@ export default function ArcadeModal({ visible, onClose, tickets, inventory, powe
   const cardBg = dark ? '#242424' : '#f8f8fa';
   const border = dark ? '#333' : '#e8e8e8';
   const iconColor = dark ? '#aaa' : '#555';
+
+  const selectedItem = selected ? POWERUPS.find(p => p.type === selected) : null;
+  const selectedCost = selected ? POWERUP_COSTS[selected] : 0;
+  const totalCost = selectedCost * qty;
+  const maxAffordable = selected ? Math.floor(tickets / selectedCost) : 0;
+
+  const openPurchase = (type: PowerupType) => {
+    setSelected(type);
+    setQty(1);
+  };
+
+  const confirmPurchase = async () => {
+    if (!selected || qty < 1 || totalCost > tickets) return;
+    setBuying(true);
+    for (let i = 0; i < qty; i++) {
+      await onBuy(selected);
+    }
+    setBuying(false);
+    setSelected(null);
+  };
 
   return (
     <div style={styles.overlay} onClick={onClose}>
@@ -215,13 +240,13 @@ export default function ArcadeModal({ visible, onClose, tickets, inventory, powe
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {POWERUPS.map(({ type, label, icon, desc }) => {
             const cost = POWERUP_COSTS[type];
-            const canBuy = tickets >= cost;
 
             return (
-              <div key={type} style={{
+              <div key={type} onClick={() => openPurchase(type)} style={{
                 display: 'flex', alignItems: 'center', gap: 12,
                 padding: '10px 14px', borderRadius: 14,
                 background: cardBg, border: `1.5px solid ${border}`,
+                cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
               }}>
                 <div style={{
                   width: 38, height: 38, borderRadius: 10,
@@ -235,21 +260,14 @@ export default function ArcadeModal({ visible, onClose, tickets, inventory, powe
                   <div style={{ fontSize: 13, fontWeight: 600, color: text }}>{label}</div>
                   <div style={{ fontSize: 10, color: sub, marginTop: 1 }}>{desc}</div>
                 </div>
-                <button
-                  onClick={() => canBuy && onBuy(type)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 4,
-                    padding: '7px 12px', borderRadius: 8, border: 'none',
-                    fontSize: 12, fontWeight: 700, cursor: canBuy ? 'pointer' : 'default',
-                    background: canBuy ? (dark ? '#2e7d32' : '#e8f5e9') : (dark ? '#2a2a2a' : '#f5f5f5'),
-                    color: canBuy ? (dark ? '#fff' : '#2e7d32') : (dark ? '#444' : '#ccc'),
-                    opacity: canBuy ? 1 : 0.5,
-                    flexShrink: 0,
-                    WebkitTapHighlightColor: 'transparent',
-                  }}
-                >
-                  {cost}<TokenIcon size={10} color={canBuy ? (dark ? '#fff' : '#2e7d32') : (dark ? '#444' : '#ccc')} />
-                </button>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  fontSize: 12, fontWeight: 700,
+                  color: dark ? '#888' : '#999',
+                  flexShrink: 0,
+                }}>
+                  {cost}<TokenIcon size={10} color={dark ? '#888' : '#999'} />
+                </div>
               </div>
             );
           })}
@@ -259,6 +277,105 @@ export default function ArcadeModal({ visible, onClose, tickets, inventory, powe
           Earn tokens by scoring Par or better
         </div>
       </div>
+
+      {/* Purchase popup */}
+      {selectedItem && (
+        <div style={{
+          position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.45)',
+          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 200,
+        }} onClick={() => setSelected(null)}>
+          <div style={{
+            background: bg, borderRadius: 20, padding: '24px 20px',
+            width: '85%', maxWidth: 320, textAlign: 'center',
+          }} onClick={e => e.stopPropagation()}>
+            {/* Icon + name */}
+            <div style={{
+              width: 56, height: 56, borderRadius: 14,
+              background: dark ? '#333' : '#eee',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 12px',
+            }}>
+              {selectedItem.icon(iconColor)}
+            </div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: text, marginBottom: 4 }}>
+              {selectedItem.label}
+            </div>
+            <div style={{ fontSize: 12, color: sub, marginBottom: 20 }}>
+              {selectedItem.desc}
+            </div>
+
+            {/* Quantity selector */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 16 }}>
+              <button
+                onClick={() => setQty(q => Math.max(1, q - 1))}
+                style={{
+                  width: 40, height: 40, borderRadius: 10, border: `1.5px solid ${border}`,
+                  background: dark ? '#2a2a2a' : '#f5f5f5', color: text,
+                  fontSize: 20, fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  opacity: qty <= 1 ? 0.3 : 1,
+                  WebkitTapHighlightColor: 'transparent',
+                }}
+              >
+                &minus;
+              </button>
+              <div style={{ fontSize: 28, fontWeight: 700, color: text, minWidth: 40 }}>
+                {qty}
+              </div>
+              <button
+                onClick={() => setQty(q => Math.min(q + 1, Math.max(1, maxAffordable)))}
+                style={{
+                  width: 40, height: 40, borderRadius: 10, border: `1.5px solid ${border}`,
+                  background: dark ? '#2a2a2a' : '#f5f5f5', color: text,
+                  fontSize: 20, fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  opacity: qty >= maxAffordable ? 0.3 : 1,
+                  WebkitTapHighlightColor: 'transparent',
+                }}
+              >
+                +
+              </button>
+            </div>
+
+            {/* Total cost */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              fontSize: 14, fontWeight: 600, color: sub, marginBottom: 16,
+            }}>
+              Total: <span style={{ color: text, fontWeight: 700 }}>{totalCost}</span>
+              <TokenIcon size={12} color={text} />
+            </div>
+
+            {/* Confirm / Cancel */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => setSelected(null)}
+                style={{
+                  flex: 1, padding: '12px 0', borderRadius: 10,
+                  border: `1.5px solid ${border}`, background: 'none',
+                  fontSize: 13, fontWeight: 600, color: sub, cursor: 'pointer',
+                  WebkitTapHighlightColor: 'transparent',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmPurchase}
+                disabled={buying || totalCost > tickets || maxAffordable < 1}
+                style={{
+                  flex: 1, padding: '12px 0', borderRadius: 10, border: 'none',
+                  fontSize: 13, fontWeight: 700, cursor: (totalCost <= tickets && !buying) ? 'pointer' : 'default',
+                  background: (totalCost <= tickets && !buying) ? '#4caf50' : (dark ? '#2a2a2a' : '#e0e0e0'),
+                  color: (totalCost <= tickets && !buying) ? '#fff' : (dark ? '#444' : '#aaa'),
+                  WebkitTapHighlightColor: 'transparent',
+                }}
+              >
+                {buying ? 'Buying...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
