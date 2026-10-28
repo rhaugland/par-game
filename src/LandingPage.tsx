@@ -19,7 +19,7 @@ const DEMO: number[][] = [
   [0, 0, 1, 0, 0, 0, 3],
 ];
 const DEMO_PATH: [number, number][] = [
-  [1,0],[1,1],[2,1],[2,2],[2,3],[3,3],
+  [1,0],[1,1],[2,1],[2,2],[2,3],
 ];
 const DEMO_START: [number, number] = [1, 0];
 const DEMO_END: [number, number] = [6, 6];
