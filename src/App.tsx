@@ -20,7 +20,7 @@ import LandingPage from './LandingPage';
 
 const DARK_KEY = 'par_dark_mode';
 const LANDING_KEY = 'par_seen_landing';
-const TIMER_DURATION = 60; // seconds
+const TIMER_DURATION = 75; // seconds
 const OVERTIME_INTERVAL = 15; // +1 per 15s over
 
 export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
@@ -140,10 +140,8 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     const gs = stateRef.current;
     if (!gs || gs.completed) return;
 
-    // Start timer on first move
-    if (gs.path.length === 1) {
-      setTimerStarted(true);
-    }
+    // Block interaction until play button is pressed
+    if (!timerStarted) return;
 
     // Bomb mode
     if (gs.bombMode) {
@@ -198,7 +196,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         setTimeout(() => setShowScore(true), 400);
       }
     }
-  }, [isSignedIn, timePenalty]);
+  }, [isSignedIn, timePenalty, timerStarted]);
 
   const handleTriviaTap = useCallback((_r: number, _c: number, question: TriviaQuestion) => {
     setTriviaTarget({ r: _r, c: _c, question });
@@ -531,6 +529,33 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
           onDrawEnd={() => setGameState(gs => gs ? { ...gs, drawing: false } : gs)}
           onTriviaTap={handleTriviaTap}
         />
+        {!timerStarted && !gameState.completed && (
+          <div
+            onClick={() => setTimerStarted(true)}
+            style={{
+              position: 'absolute', inset: 0, borderRadius: 12,
+              background: dark ? 'rgba(18,18,18,0.7)' : 'rgba(255,255,255,0.75)',
+              backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+              display: 'flex', flexDirection: 'column',
+              justifyContent: 'center', alignItems: 'center',
+              cursor: 'pointer', zIndex: 30,
+            }}
+          >
+            <div style={{
+              width: 80, height: 80, borderRadius: 40,
+              background: '#1a1a2e', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.2)',
+            }}>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="#fff">
+                <polygon points="6,3 20,12 6,21" />
+              </svg>
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: dark ? '#aaa' : '#666', marginTop: 14, letterSpacing: 2, textTransform: 'uppercase' }}>
+              Tap to play
+            </div>
+          </div>
+        )}
         {gameState.completed && (
           <div
             onClick={() => setShowScore(true)}
