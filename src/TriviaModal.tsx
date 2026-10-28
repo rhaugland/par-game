@@ -1,39 +1,102 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { TriviaQuestion } from './engine/types';
 import { getCategoryIcon } from './engine/trivia';
+
+const TRIVIA_TIMER = 15; // seconds to answer
+const FIRST_TRIVIA_KEY = 'par_first_trivia_done';
 
 interface Props {
   question: TriviaQuestion;
   onResult: (correct: boolean | null) => void;
+  canSkip: boolean; // true if first-ever trivia or has trivia_skip powerup
+  onUseSkip?: () => void; // called when using a powerup skip (not first-time freebie)
 }
 
-export default function TriviaModal({ question, onResult }: Props) {
+export default function TriviaModal({ question, onResult, canSkip, onUseSkip }: Props) {
   const [selected, setSelected] = useState<number | null>(null);
   const [revealed, setRevealed] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(TRIVIA_TIMER);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const resultSent = useRef(false);
+
+  const isFirstEver = !localStorage.getItem(FIRST_TRIVIA_KEY);
+
+  // 15s countdown
+  useEffect(() => {
+    if (revealed) return;
+    timerRef.current = setInterval(() => {
+      setTimeLeft(t => {
+        if (t <= 1) {
+          // Time's up — wrong answer
+          if (timerRef.current) clearInterval(timerRef.current);
+          if (!resultSent.current) {
+            resultSent.current = true;
+            setTimeout(() => onResult(false), 200);
+          }
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [revealed, onResult]);
 
   const handleSelect = (idx: number) => {
     if (revealed) return;
+    if (timerRef.current) clearInterval(timerRef.current);
     setSelected(idx);
     setRevealed(true);
+    resultSent.current = true;
     setTimeout(() => onResult(idx === question.answer), 1200);
+  };
+
+  const handleSkip = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    resultSent.current = true;
+    if (isFirstEver) {
+      localStorage.setItem(FIRST_TRIVIA_KEY, '1');
+    } else if (onUseSkip) {
+      onUseSkip();
+    }
+    onResult(null);
   };
 
   const icon = getCategoryIcon(question.category);
   const catLabel = question.category.charAt(0).toUpperCase() + question.category.slice(1);
+  const timerColor = timeLeft > 5 ? '#9e9e9e' : '#ef5350';
+  const timerPct = (timeLeft / TRIVIA_TIMER) * 100;
 
   return (
     <div style={styles.overlay}>
       <div style={styles.card}>
-        {!revealed && (
-          <button style={styles.closeBtn} onClick={() => onResult(null)} aria-label="Close">
+        {/* X button — only for first-ever or powerup skip */}
+        {!revealed && canSkip && (
+          <button style={styles.closeBtn} onClick={handleSkip} aria-label="Close">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/>
             </svg>
           </button>
         )}
+
+        {/* Timer bar */}
+        {!revealed && (
+          <div style={styles.timerTrack}>
+            <div style={{
+              ...styles.timerBar,
+              width: `${timerPct}%`,
+              backgroundColor: timerColor,
+            }} />
+          </div>
+        )}
+
         <div style={styles.catRow}>
           <span style={styles.icon}>{icon}</span>
           <span style={styles.cat}>{catLabel}</span>
+          {!revealed && (
+            <span style={{ ...styles.timerText, color: timerColor }}>{timeLeft}s</span>
+          )}
         </div>
         <div style={styles.question}>{question.question}</div>
         {!revealed && (
@@ -83,6 +146,11 @@ export default function TriviaModal({ question, onResult }: Props) {
             {selected === question.answer ? 'Correct! Wall removed.' : 'Wrong! Wall stays.'}
           </div>
         )}
+        {!revealed && timeLeft === 0 && (
+          <div style={{ ...styles.result, color: '#ef5350' }}>
+            Time's up! +1 stroke
+          </div>
+        )}
       </div>
     </div>
   );
@@ -102,6 +170,17 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'none', border: 'none', cursor: 'pointer',
     color: '#9e9e9e', padding: 4, display: 'flex',
     alignItems: 'center', justifyContent: 'center',
+  },
+  timerTrack: {
+    height: 3, borderRadius: 2, backgroundColor: '#f0f0f0',
+    marginBottom: 16, overflow: 'hidden',
+  },
+  timerBar: {
+    height: '100%', borderRadius: 2,
+    transition: 'width 1s linear, background-color 0.3s',
+  },
+  timerText: {
+    fontSize: 13, fontWeight: 700, marginLeft: 'auto',
   },
   catRow: {
     display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16,

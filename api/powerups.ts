@@ -10,6 +10,7 @@ const POWERUP_COSTS: Record<string, number> = {
   puzzle_retry: 5,
   skip_checkpoint: 4,
   par_path: 8,
+  trivia_skip: 2,
 };
 
 export default async function handler(req: Request) {

@@ -116,15 +116,15 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     }
   }, []);
 
-  // Timer management
+  // Timer management — pause while trivia is open
   useEffect(() => {
-    if (timerStarted && !gameState?.completed) {
+    if (timerStarted && !gameState?.completed && !triviaTarget) {
       timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
     }
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [timerStarted, gameState?.completed]);
+  }, [timerStarted, gameState?.completed, triviaTarget]);
 
   // Stop timer on completion
   useEffect(() => {
@@ -620,7 +620,29 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
       )}
 
       {triviaTarget && (
-        <TriviaModal question={triviaTarget.question} onResult={handleTriviaResult} />
+        <TriviaModal
+          question={triviaTarget.question}
+          onResult={handleTriviaResult}
+          canSkip={
+            !localStorage.getItem('par_first_trivia_done') ||
+            (inventory['trivia_skip'] || 0) > 0
+          }
+          onUseSkip={() => {
+            // Consume a trivia_skip powerup
+            const owned = inventory['trivia_skip'] || 0;
+            if (owned > 0) {
+              const newInv = { ...inventory, trivia_skip: owned - 1 };
+              setInventory(newInv);
+              if (isSignedIn) {
+                import('./lib/api').then(({ usePowerupApi }) =>
+                  usePowerupApi('trivia_skip', todaySeed())
+                );
+              } else {
+                setLocalInventory(newInv);
+              }
+            }
+          }}
+        />
       )}
       <ScoreModal visible={showScore} gameState={gameState} puzzle={puzzle} onClose={() => setShowScore(false)} isSignedIn={isSignedIn} />
       <StatsModal visible={showStats} onClose={() => setShowStats(false)} onViewHole={handleViewHole} isSignedIn={isSignedIn} />
