@@ -122,7 +122,7 @@ export default function ScoreModal({ visible, gameState, puzzle, onClose, isSign
         {/* Shareable card area */}
         <div ref={cardRef} style={st.card}>
           <div style={st.cardTop}>
-            <span style={st.cardLogo}>par</span>
+            <span style={st.cardLogo}>par puzzle</span>
             <span style={st.cardTagline}>daily maze challenge</span>
           </div>
 

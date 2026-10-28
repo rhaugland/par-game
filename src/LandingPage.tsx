@@ -16,10 +16,10 @@ export default function LandingPage({ dark, onPlay }: Props) {
       {/* Hero */}
       <div style={{ textAlign: 'center', marginTop: '12dvh', marginBottom: 48 }}>
         <div style={{
-          fontSize: 56, fontWeight: 200, color: text, letterSpacing: 16,
+          fontSize: 48, fontWeight: 200, color: text, letterSpacing: 12,
           lineHeight: 1,
         }}>
-          par
+          par puzzle
         </div>
         <div style={{
           fontSize: 11, letterSpacing: 4, textTransform: 'uppercase',

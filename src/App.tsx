@@ -435,7 +435,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
           </button>
         </div>
         <div style={s.headerCenter}>
-          <div style={{ ...s.title, color: t.text }}>par</div>
+          <div style={{ ...s.title, color: t.text }}>par puzzle</div>
           <div style={{ ...s.day, color: t.sub }}>#{dayNumber()}</div>
         </div>
         <div style={s.headerRight}>
@@ -563,13 +563,19 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
 
       {/* Legend */}
       <div style={s.legend}>
-        <span style={{ color: t.sub2, fontSize: 11, lineHeight: 1.6 }}>
+        <span style={{ color: t.sub2, fontSize: 11, lineHeight: 1.6, display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', gap: 2 }}>
           <b style={{ color: t.text }}>?</b> Trivia
-          <span style={{ color: t.sub, margin: '0 4px' }}>&middot;</span>
-          <span style={{ color: '#0288d1' }}>Ice</span> = can't turn
-          <span style={{ color: t.sub, margin: '0 4px' }}>&middot;</span>
-          <span style={{ color: '#e65100' }}>Sand</span> = 2x moves
-          <span style={{ color: t.sub, margin: '0 4px' }}>&middot;</span>
+          <span style={{ color: t.sub, margin: '0 3px' }}>&middot;</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0288d1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle' }}>
+            <path d="M12 2v20M2 12h20M6 6l12 12M18 6L6 18" />
+          </svg>
+          <span> = can't turn</span>
+          <span style={{ color: t.sub, margin: '0 3px' }}>&middot;</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e65100" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle' }}>
+            <path d="M4 20h16M6 16h12M8 12h8" /><circle cx="12" cy="6" r="2" />
+          </svg>
+          <span> = 2x moves</span>
+          <span style={{ color: t.sub, margin: '0 3px' }}>&middot;</span>
           <span style={{ color: '#c62828' }}>!</span> Trap = back to start
         </span>
       </div>
