@@ -206,87 +206,52 @@ export default function LandingPage({ dark, onPlay }: Props) {
       >
         Play Today's Puzzle
       </button>
-      <div style={{ fontSize: 11, color: muted, marginBottom: 36, letterSpacing: 1 }}>
-        A new puzzle every day at midnight
+      <div style={{ fontSize: 11, color: muted, marginBottom: 28, letterSpacing: 1 }}>
+        New puzzle daily &middot; 75s on the clock
       </div>
 
-      {/* Tile guide — uses actual tile colors and icons from Grid.tsx */}
-      <div style={{ maxWidth: 360, width: '100%', marginBottom: 32 }}>
-        <div style={{ fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', color: muted, textAlign: 'center', marginBottom: 14 }}>
-          Tiles
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {TILES.map(t => (
-            <div key={t.label} style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '10px 14px', borderRadius: 12,
-              background: cardBg, border: `1px solid ${cardBorder}`,
+      {/* Compact tile guide — 3x2 grid */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6,
+        maxWidth: 360, width: '100%', marginBottom: 20,
+      }}>
+        {TILES.map(t => (
+          <div key={t.label} style={{
+            background: cardBg, border: `1px solid ${cardBorder}`,
+            borderRadius: 10, padding: '10px 6px', textAlign: 'center',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+          }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: 4,
+              backgroundColor: t.bg,
+              border: t.border ? `1px solid ${t.border}` : 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              overflow: 'hidden',
             }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: 4,
-                backgroundColor: t.bg,
-                border: t.border ? `1px solid ${t.border}` : 'none',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0, overflow: 'hidden',
-              }}>
-                {t.inner}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: text }}>{t.label}</div>
-                <div style={{ fontSize: 11, color: sub, marginTop: 1 }}>{t.desc}</div>
-              </div>
+              {t.inner}
+            </div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: text }}>{t.label}</div>
+            <div style={{ fontSize: 8, color: muted, lineHeight: 1.2 }}>{t.short}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Compact scoring — single row */}
+      <div style={{
+        maxWidth: 360, width: '100%', marginBottom: 20,
+        background: cardBg, border: `1px solid ${cardBorder}`,
+        borderRadius: 10, padding: '10px 8px',
+      }}>
+        <div style={{ fontSize: 11, color: sub, textAlign: 'center', marginBottom: 8 }}>
+          Fewer moves = better score, like golf
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
+          {SCORES.map(s => (
+            <div key={s.label} style={{ textAlign: 'center', flex: 1 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: s.color }}>{s.val}</div>
+              <div style={{ fontSize: 7, color: muted, letterSpacing: 1 }}>{s.label}</div>
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* Scoring */}
-      <div style={{ maxWidth: 360, width: '100%', marginBottom: 32 }}>
-        <div style={{ fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', color: muted, textAlign: 'center', marginBottom: 14 }}>
-          Scoring
-        </div>
-        <div style={{
-          background: cardBg, border: `1px solid ${cardBorder}`,
-          borderRadius: 14, padding: '16px 12px',
-        }}>
-          <div style={{ fontSize: 12, color: sub, textAlign: 'center', marginBottom: 14, lineHeight: 1.5 }}>
-            Your score = your moves minus the par.
-            <br />
-            Lower is better, just like golf.
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
-            {SCORES.map(s => (
-              <div key={s.label} style={{
-                textAlign: 'center', padding: '8px 10px', borderRadius: 10,
-                background: dark ? '#252525' : '#fff', minWidth: 56,
-              }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.val}</div>
-                <div style={{ fontSize: 8, color: muted, letterSpacing: 1.5, marginTop: 2 }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ fontSize: 11, color: sub, textAlign: 'center', marginTop: 12 }}>
-            Score par or better to earn tokens for the shop
-          </div>
-        </div>
-      </div>
-
-      {/* Timer note */}
-      <div style={{
-        maxWidth: 360, width: '100%',
-        background: cardBg, border: `1px solid ${cardBorder}`,
-        borderRadius: 14, padding: '14px 16px',
-        display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32,
-      }}>
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={dark ? '#aaa' : '#555'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-          <circle cx="12" cy="12" r="10" />
-          <polyline points="12 6 12 12 16 14" />
-        </svg>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: text }}>You're on the clock</div>
-          <div style={{ fontSize: 11, color: sub, marginTop: 1 }}>
-            75 seconds to finish. Go over and you'll take penalty strokes. First game gets 2 minutes.
-          </div>
         </div>
       </div>
     </div>
@@ -294,31 +259,31 @@ export default function LandingPage({ dark, onPlay }: Props) {
 }
 
 // Tile guide items — rendered with the actual colors/icons from Grid.tsx
-const TILES: { label: string; bg: string; border?: string; inner: React.ReactNode; desc: string }[] = [
+const TILES: { label: string; bg: string; border?: string; inner: React.ReactNode; short: string }[] = [
   {
     label: 'Walls',
-    bg: '#1a1a2e', desc: 'Blocked — find your way around them',
+    bg: '#1a1a2e', short: 'Blocked',
     inner: null,
   },
   {
-    label: 'Trivia Walls',
-    bg: '#2a2a3e', desc: 'Answer a trivia question to pass. Wrong = +1 penalty stroke',
-    inner: <span style={{ color: '#fff', fontSize: 13, fontWeight: 700, opacity: 0.9 }}>W?</span>,
+    label: 'Trivia',
+    bg: '#2a2a3e', short: 'Answer to pass',
+    inner: <span style={{ color: '#fff', fontSize: 11, fontWeight: 700, opacity: 0.9 }}>W?</span>,
   },
   {
     label: 'Ice',
-    bg: '#b3e5fc', border: 'rgba(0,0,0,0.06)', desc: "Can't change direction — you slide straight through",
+    bg: '#b3e5fc', border: 'rgba(0,0,0,0.06)', short: "Can't turn",
     inner: (
-      <svg width={18} height={18} viewBox="0 0 16 16" fill="none" style={{ opacity: 0.4 }}>
+      <svg width={14} height={14} viewBox="0 0 16 16" fill="none" style={{ opacity: 0.4 }}>
         <path d="M8 2v12M2 8h12M4 4l8 8M12 4l-8 8" stroke="#0288d1" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     ),
   },
   {
     label: 'Sand',
-    bg: '#ffe0b2', border: 'rgba(0,0,0,0.06)', desc: 'Costs 2 moves per tile instead of 1',
+    bg: '#ffe0b2', border: 'rgba(0,0,0,0.06)', short: '2x move cost',
     inner: (
-      <svg width={18} height={18} viewBox="0 0 16 16" fill="#e65100" style={{ opacity: 0.35 }}>
+      <svg width={14} height={14} viewBox="0 0 16 16" fill="#e65100" style={{ opacity: 0.35 }}>
         <circle cx="4" cy="4" r="1.5" /><circle cx="12" cy="4" r="1.5" />
         <circle cx="8" cy="8" r="1.5" />
         <circle cx="4" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" />
@@ -327,18 +292,18 @@ const TILES: { label: string; bg: string; border?: string; inner: React.ReactNod
   },
   {
     label: 'Traps',
-    bg: '#ffcdd2', border: 'rgba(0,0,0,0.06)', desc: 'Sends you back to start with a +2 penalty. Disarmed after triggering',
-    inner: <span style={{ fontSize: 16, fontWeight: 800, color: '#c62828', lineHeight: 1 }}>!</span>,
+    bg: '#ffcdd2', border: 'rgba(0,0,0,0.06)', short: 'Back to start +2',
+    inner: <span style={{ fontSize: 14, fontWeight: 800, color: '#c62828', lineHeight: 1 }}>!</span>,
   },
   {
-    label: 'Checkpoints',
-    bg: '#e0e0e0', border: 'rgba(0,0,0,0.06)', desc: 'Must visit all checkpoints before reaching the goal',
+    label: 'Checkpts',
+    bg: '#e0e0e0', border: 'rgba(0,0,0,0.06)', short: 'Visit all first',
     inner: (
       <div style={{
-        width: 24, height: 24, borderRadius: '50%', backgroundColor: '#9e9e9e',
+        width: 20, height: 20, borderRadius: '50%', backgroundColor: '#9e9e9e',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        <span style={{ color: '#fff', fontSize: 12, fontWeight: 800, lineHeight: 1 }}>1</span>
+        <span style={{ color: '#fff', fontSize: 10, fontWeight: 800, lineHeight: 1 }}>1</span>
       </div>
     ),
   },
