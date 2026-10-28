@@ -86,13 +86,8 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
   }, [onDrawEnd]);
 
   const pathSet = new Set(gameState.path.map(([r, c]) => `${r},${c}`));
-  const head = gameState.path[gameState.path.length - 1];
+  const head = gameState.path.length > 1 ? gameState.path[gameState.path.length - 1] : null;
   const strokeWidth = cellSize * 0.55;
-
-  const pathPoints = gameState.path.map(([r, c]) => ({
-    x: c * cellSize + cellSize / 2,
-    y: r * cellSize + cellSize / 2,
-  }));
 
   return (
     <div
@@ -127,7 +122,9 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
           const trapTriggered = gameState.triggeredTraps.has(cellKey);
           const cpVisited = isCheckpoint && cell.checkpointIndex !== undefined &&
             gameState.checkpointsVisited.has(cell.checkpointIndex);
+          const isHead = head && head[0] === r && head[1] === c;
 
+          // Base background
           let bg = '#f0f1f3';
           if (isWall) bg = '#1a1a2e';
           if (isTrivia && !isUnlocked && !isFailed) bg = '#2a2a3e';
@@ -138,6 +135,14 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
           if (isTrap && !trapTriggered) bg = '#ffcdd2';
           if (isTrap && trapTriggered) bg = '#f0f1f3';
           if (isCheckpoint) bg = cpVisited ? '#c8e6c9' : '#e0e0e0';
+
+          // Path fills the cell green
+          if (inPath && !isWall && !(isTrivia && !isUnlocked)) {
+            if (isEnd) bg = '#e53935';
+            else if (isIce) bg = '#81d4fa'; // slightly brighter ice on path
+            else if (isSand) bg = '#ffcc80'; // slightly brighter sand on path
+            else bg = '#66bb6a';
+          }
 
           const isSolid = isWall || (isTrivia && !isUnlocked);
 
@@ -170,16 +175,28 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
                 <span style={{ fontSize: Math.max(cellSize * 0.3, 10), color: '#ef5350', fontWeight: 800 }}>+1</span>
               )}
 
-              {/* Ice indicator */}
-              {isIce && (
+              {/* Ice indicator — show on path and off path */}
+              {isIce && !inPath && (
                 <svg width={cellSize * 0.5} height={cellSize * 0.5} viewBox="0 0 16 16" fill="none" style={{ opacity: 0.4 }}>
                   <path d="M8 2v12M2 8h12M4 4l8 8M12 4l-8 8" stroke="#0288d1" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
               )}
+              {isIce && inPath && (
+                <svg width={cellSize * 0.5} height={cellSize * 0.5} viewBox="0 0 16 16" fill="none" style={{ opacity: 0.5 }}>
+                  <path d="M8 2v12M2 8h12M4 4l8 8M12 4l-8 8" stroke="#01579b" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              )}
 
-              {/* Sand dots */}
-              {isSand && (
+              {/* Sand dots — show on path and off path */}
+              {isSand && !inPath && (
                 <svg width={cellSize * 0.5} height={cellSize * 0.5} viewBox="0 0 16 16" fill="#e65100" style={{ opacity: 0.35 }}>
+                  <circle cx="4" cy="4" r="1.5" /><circle cx="12" cy="4" r="1.5" />
+                  <circle cx="8" cy="8" r="1.5" />
+                  <circle cx="4" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" />
+                </svg>
+              )}
+              {isSand && inPath && (
+                <svg width={cellSize * 0.5} height={cellSize * 0.5} viewBox="0 0 16 16" fill="#bf360c" style={{ opacity: 0.45 }}>
                   <circle cx="4" cy="4" r="1.5" /><circle cx="12" cy="4" r="1.5" />
                   <circle cx="8" cy="8" r="1.5" />
                   <circle cx="4" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" />
@@ -212,7 +229,7 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
                 </div>
               )}
 
-              {/* Start dot */}
+              {/* Start dot — always visible */}
               {isStart && !inPath && (
                 <div style={{
                   width: 22, height: 22, borderRadius: 11,
@@ -221,80 +238,57 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
                 }} />
               )}
 
-              {/* End goal */}
+              {/* End goal — when not yet reached */}
               {isEnd && !inPath && (
                 <div style={{ padding: '4px 8px', borderRadius: 4, backgroundColor: '#ff5252' }}>
                   <span style={{ color: '#fff', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>GOAL</span>
                 </div>
+              )}
+
+              {/* End reached */}
+              {isEnd && inPath && (
+                <span style={{ color: '#fff', fontSize: Math.max(cellSize * 0.28, 8), fontWeight: 800, letterSpacing: 0.5 }}>
+                  GOAL
+                </span>
+              )}
+
+              {/* Head indicator — white dot on current cell */}
+              {isHead && !isEnd && (
+                <div style={{
+                  position: 'absolute',
+                  width: cellSize * 0.4, height: cellSize * 0.4,
+                  borderRadius: '50%', backgroundColor: '#fff',
+                  boxShadow: '0 0 6px rgba(0,0,0,0.15)',
+                }} />
               )}
             </div>
           );
         })
       )}
 
-      {/* Path SVG */}
-      {pathPoints.length > 0 && (
-        <svg
-          width={gridW} height={gridH}
-          viewBox={`0 0 ${gridW} ${gridH}`}
-          style={{ position: 'absolute', inset: 0 }}
-          pointerEvents="none"
-        >
-          <defs>
-            <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#66bb6a" />
-              <stop offset="100%" stopColor="#43a047" />
-            </linearGradient>
-            <filter id="pt">
-              <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="4" result="n" />
-              <feDisplacementMap in="SourceGraphic" in2="n" scale="2" />
-            </filter>
-          </defs>
-          <g pointerEvents="none">
-            <polyline points={pathPoints.map(p => `${p.x},${p.y}`).join(' ')}
-              fill="none" stroke="rgba(0,0,0,0.08)"
-              strokeWidth={strokeWidth + 4} strokeLinecap="round" strokeLinejoin="round" />
-            <polyline points={pathPoints.map(p => `${p.x},${p.y}`).join(' ')}
-              fill="none" stroke="url(#pg)"
-              strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
-              filter="url(#pt)" />
-            <polyline points={pathPoints.map(p => `${p.x},${p.y - strokeWidth * 0.15}`).join(' ')}
-              fill="none" stroke="rgba(255,255,255,0.25)"
-              strokeWidth={strokeWidth * 0.3} strokeLinecap="round" strokeLinejoin="round" />
-            {head && (
-              <>
-                <circle cx={head[1] * cellSize + cellSize / 2} cy={head[0] * cellSize + cellSize / 2}
-                  r={strokeWidth * 0.42} fill="#2e7d32" opacity={0.3} />
-                <circle cx={head[1] * cellSize + cellSize / 2} cy={head[0] * cellSize + cellSize / 2}
-                  r={strokeWidth * 0.32} fill="#fff" opacity={0.9} />
-              </>
-            )}
-            {gameState.path.length > 0 && (
-              <circle cx={puzzle.start[1] * cellSize + cellSize / 2} cy={puzzle.start[0] * cellSize + cellSize / 2}
-                r={strokeWidth * 0.35} fill="#2e7d32" stroke="#fff" strokeWidth={2} />
-            )}
-            {gameState.completed && (
-              <>
-                <circle cx={puzzle.end[1] * cellSize + cellSize / 2} cy={puzzle.end[0] * cellSize + cellSize / 2}
-                  r={strokeWidth * 0.4} fill="#4caf50" />
-                <text x={puzzle.end[1] * cellSize + cellSize / 2} y={puzzle.end[0] * cellSize + cellSize / 2 + 3}
-                  textAnchor="middle" fill="#fff" fontSize={8} fontWeight={800} letterSpacing={1}>
-                  GOAL
-                </text>
-              </>
-            )}
-            {/* Par path ghost line */}
-            {gameState.parPath && gameState.parPath.length > 1 && (
-              <polyline
-                points={gameState.parPath.map(([r, c]) => `${c * cellSize + cellSize / 2},${r * cellSize + cellSize / 2}`).join(' ')}
-                fill="none" stroke="rgba(33,150,243,0.35)"
-                strokeWidth={strokeWidth * 0.4} strokeLinecap="round" strokeLinejoin="round"
-                strokeDasharray="6,4"
-              />
-            )}
-          </g>
-        </svg>
-      )}
+      {/* SVG overlay for start marker and par path only */}
+      <svg
+        width={gridW} height={gridH}
+        viewBox={`0 0 ${gridW} ${gridH}`}
+        style={{ position: 'absolute', inset: 0 }}
+        pointerEvents="none"
+      >
+        {/* Start circle marker */}
+        {gameState.path.length > 0 && (
+          <circle cx={puzzle.start[1] * cellSize + cellSize / 2} cy={puzzle.start[0] * cellSize + cellSize / 2}
+            r={cellSize * 0.22} fill="#2e7d32" stroke="#fff" strokeWidth={2} />
+        )}
+
+        {/* Par path ghost line (powerup) */}
+        {gameState.parPath && gameState.parPath.length > 1 && (
+          <polyline
+            points={gameState.parPath.map(([r, c]) => `${c * cellSize + cellSize / 2},${r * cellSize + cellSize / 2}`).join(' ')}
+            fill="none" stroke="rgba(33,150,243,0.35)"
+            strokeWidth={strokeWidth * 0.4} strokeLinecap="round" strokeLinejoin="round"
+            strokeDasharray="6,4"
+          />
+        )}
+      </svg>
     </div>
   );
 }
