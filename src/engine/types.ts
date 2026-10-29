@@ -77,6 +77,7 @@ export interface GameState {
   checkpointsVisited: Set<number>;
   triggeredTraps: Set<string>;
   trapPenalty: number;
+  backtrackPenalty: number;
 }
 
 export interface DailyRecord {

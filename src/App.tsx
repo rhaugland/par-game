@@ -312,6 +312,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
           triviaPenalty: gameState.triviaPenalty,
           trapPenalty: gameState.trapPenalty,
           triggeredTraps: gameState.triggeredTraps,
+          backtrackPenalty: gameState.backtrackPenalty,
           powerupsUsed: newUsed,
         });
         setShowArcade(false);
@@ -604,7 +605,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0288d1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle' }}>
             <path d="M12 2v20M2 12h20M6 6l12 12M18 6L6 18" />
           </svg>
-          <span> = can't turn</span>
+          <span> = free move</span>
           <span style={{ color: t.sub, margin: '0 3px' }}>&middot;</span>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e65100" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle' }}>
             <path d="M4 20h16M6 16h12M8 12h8" /><circle cx="12" cy="6" r="2" />

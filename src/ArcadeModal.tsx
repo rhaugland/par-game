@@ -112,7 +112,7 @@ const POWERUPS: { type: PowerupType; label: string; icon: (color: string) => Rea
   { type: 'backspace', label: 'Undo', icon: (c) => <UndoIcon color={c} />, desc: 'Undo your last move' },
   { type: 'trivia_retry', label: 'Retry Q', icon: (c) => <RetryIcon color={c} />, desc: 'Retry a failed trivia question' },
   { type: 'bomb', label: 'Bomb', icon: (c) => <BombIcon color={c} />, desc: 'Destroy any wall cell' },
-  { type: 'melt_ice', label: 'Melt Ice', icon: (c) => <IceIcon color={c} />, desc: 'Tap an ice tile to make it normal' },
+  { type: 'melt_ice', label: 'Melt Ice', icon: (c) => <IceIcon color={c} />, desc: 'Remove an ice tile (loses free move)' },
   { type: 'pave_sand', label: 'Pave Sand', icon: (c) => <SandIcon color={c} />, desc: 'Tap a sand tile to remove the penalty' },
   { type: 'skip_checkpoint', label: 'Skip CP', icon: (c) => <FlagIcon color={c} />, desc: 'Skip one unvisited checkpoint' },
   { type: 'trivia_skip', label: 'Skip Q', icon: (c) => <SkipIcon color={c} />, desc: 'Dismiss a trivia question' },

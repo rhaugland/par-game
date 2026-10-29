@@ -17,6 +17,7 @@ export function createGameState(puzzle: Puzzle): GameState {
     checkpointsVisited: new Set(),
     triggeredTraps: new Set(),
     trapPenalty: 0,
+    backtrackPenalty: 0,
   };
 }
 
@@ -53,9 +54,12 @@ export function getMoves(state: GameState, puzzle: Puzzle): number {
   let moves = 0;
   for (let i = 1; i < state.path.length; i++) {
     const [r, c] = state.path[i];
-    moves += puzzle.grid[r][c].type === CellType.Sand ? 2 : 1;
+    const t = puzzle.grid[r][c].type;
+    if (t === CellType.Ice) moves += 0; // ice is free
+    else if (t === CellType.Sand) moves += 2;
+    else moves += 1;
   }
-  return moves;
+  return moves + state.backtrackPenalty;
 }
 
 export function addToPath(
@@ -68,7 +72,7 @@ export function addToPath(
 
   const last = state.path[state.path.length - 1];
 
-  // Backtracking — if target is second-to-last, pop last
+  // Backtracking — if target is second-to-last, pop last (costs +1 penalty)
   if (state.path.length >= 2) {
     const prev = state.path[state.path.length - 2];
     if (prev[0] === r && prev[1] === c) {
@@ -81,32 +85,11 @@ export function addToPath(
           newCpVisited.add(cell.checkpointIndex);
         }
       }
-      return { ...state, path: newPath, checkpointsVisited: newCpVisited };
+      return { ...state, path: newPath, checkpointsVisited: newCpVisited, backtrackPenalty: state.backtrackPenalty + 1 };
     }
   }
 
   if (!isAdjacent(last, [r, c])) return state;
-
-  // Ice direction lock: if current cell is ice, must continue in entry direction
-  if (puzzle.grid[last[0]][last[1]].type === CellType.Ice && state.path.length >= 2) {
-    const prev = state.path[state.path.length - 2];
-    const slideDir: [number, number] = [last[0] - prev[0], last[1] - prev[1]];
-    const nextInSlide: [number, number] = [last[0] + slideDir[0], last[1] + slideDir[1]];
-
-    // Check if can continue sliding
-    const canSlide =
-      nextInSlide[0] >= 0 && nextInSlide[0] < puzzle.rows &&
-      nextInSlide[1] >= 0 && nextInSlide[1] < puzzle.cols &&
-      isPassable(puzzle.grid[nextInSlide[0]][nextInSlide[1]].type) &&
-      !state.path.some(([pr, pc]) => pr === nextInSlide[0] && pc === nextInSlide[1]);
-
-    if (canSlide) {
-      const moveDir: [number, number] = [r - last[0], c - last[1]];
-      if (moveDir[0] !== slideDir[0] || moveDir[1] !== slideDir[1]) {
-        return state; // Can't change direction on ice
-      }
-    }
-  }
 
   if (!canMoveTo(r, c, puzzle, state.path, state.unlockedCells, state.checkpointsVisited)) return state;
 
@@ -143,9 +126,12 @@ export function addToPath(
     let moveCount = 0;
     for (let i = 1; i < newPath.length; i++) {
       const [pr, pc] = newPath[i];
-      moveCount += puzzle.grid[pr][pc].type === CellType.Sand ? 2 : 1;
+      const t = puzzle.grid[pr][pc].type;
+      if (t === CellType.Ice) moveCount += 0; // ice is free
+      else if (t === CellType.Sand) moveCount += 2;
+      else moveCount += 1;
     }
-    score = (moveCount + state.triviaPenalty + state.trapPenalty) - puzzle.par;
+    score = (moveCount + state.backtrackPenalty + state.triviaPenalty + state.trapPenalty) - puzzle.par;
   }
 
   return {
@@ -164,6 +150,7 @@ export function addToPath(
     checkpointsVisited: newCpVisited,
     triggeredTraps: state.triggeredTraps,
     trapPenalty: state.trapPenalty,
+    backtrackPenalty: state.backtrackPenalty,
   };
 }
 

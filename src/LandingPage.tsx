@@ -262,7 +262,7 @@ const TILES: { label: string; bg: string; border?: string; inner: React.ReactNod
   },
   {
     label: 'Ice',
-    bg: '#b3e5fc', border: 'rgba(0,0,0,0.06)', short: "Can't turn",
+    bg: '#b3e5fc', border: 'rgba(0,0,0,0.06)', short: 'Free move',
     inner: (
       <svg width={14} height={14} viewBox="0 0 16 16" fill="none" style={{ opacity: 0.4 }}>
         <path d="M8 2v12M2 8h12M4 4l8 8M12 4l-8 8" stroke="#0288d1" strokeWidth="1.5" strokeLinecap="round" />

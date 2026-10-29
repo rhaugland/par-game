@@ -124,9 +124,15 @@ function placeTriviaWalls(puzzle: Puzzle, rng: () => number): Puzzle {
   const dirs: [number, number][] = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 
   const shortcuts: { r: number; c: number; savings: number }[] = [];
+  // Minimum distance from start/end for trivia placement — prevents trivial shortcuts
+  const minDistFromEdge = Math.floor(Math.min(rows, cols) * 0.25);
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       if (grid[r][c].type !== CellType.Wall) continue;
+      // Skip walls too close to start or end
+      const distStart = Math.abs(r - start[0]) + Math.abs(c - start[1]);
+      const distEnd = Math.abs(r - end[0]) + Math.abs(c - end[1]);
+      if (distStart < minDistFromEdge || distEnd < minDistFromEdge) continue;
       let openNeighbors = 0;
       for (const [dr, dc] of dirs) {
         const nr = r + dr, nc = c + dc;
@@ -218,6 +224,7 @@ function placeSpecialTiles(puzzle: Puzzle, rng: () => number): Puzzle {
   const checkpoints: [number, number][] = [];
   const shuffledOff = [...offPath].sort(() => rng() - 0.5);
 
+  // First pass: strict constraints
   for (const [r, c] of shuffledOff) {
     if (checkpoints.length >= 2) break;
     const tooClose = checkpoints.some(([cr, cc]) =>
@@ -227,7 +234,6 @@ function placeSpecialTiles(puzzle: Puzzle, rng: () => number): Puzzle {
     const nearStart = Math.abs(r - start[0]) + Math.abs(c - start[1]) < 3;
     const nearEnd = Math.abs(r - end[0]) + Math.abs(c - end[1]) < 3;
     if (nearStart || nearEnd) continue;
-    // Must have at least 2 open neighbors (not a dead end)
     let openN = 0;
     for (const [dr, dc] of dirs) {
       const nr = r + dr, nc = c + dc;
@@ -236,6 +242,25 @@ function placeSpecialTiles(puzzle: Puzzle, rng: () => number): Puzzle {
     if (openN < 2) continue;
     checkpoints.push([r, c]);
     grid[r][c] = { type: CellType.Checkpoint, checkpointIndex: checkpoints.length - 1 };
+  }
+  // Fallback: relax distance constraints if we didn't get 2
+  if (checkpoints.length < 2) {
+    for (const [r, c] of shuffledOff) {
+      if (checkpoints.length >= 2) break;
+      if (grid[r][c].type !== CellType.Empty) continue;
+      const tooClose = checkpoints.some(([cr, cc]) =>
+        Math.abs(cr - r) + Math.abs(cc - c) < 3
+      );
+      if (tooClose) continue;
+      let openN = 0;
+      for (const [dr, dc] of dirs) {
+        const nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].type !== CellType.Wall) openN++;
+      }
+      if (openN < 2) continue;
+      checkpoints.push([r, c]);
+      grid[r][c] = { type: CellType.Checkpoint, checkpointIndex: checkpoints.length - 1 };
+    }
   }
 
   // --- ICE PATCHES (find corridors of 3+ empty cells in a line) ---
