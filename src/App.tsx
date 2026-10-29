@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { generatePuzzle } from './engine/generator';
 import { createGameState, addToPath, getMoves, getScoreLabel } from './engine/game';
-import { solvePath } from './engine/solver';
+import { solvePathWithFeatures } from './engine/solver';
 import { todaySeed, dayNumber, seedForDay } from './engine/seed';
 import { Puzzle, GameState, TriviaQuestion, PowerupType, POWERUP_COSTS, POWERUP_LIMITS } from './engine/types';
 import {
@@ -342,7 +342,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         break;
       }
       case 'par_path': {
-        const optPath = solvePath(puzzle.grid, puzzle.start, puzzle.end, puzzle.rows, puzzle.cols);
+        const optPath = solvePathWithFeatures(puzzle.grid, puzzle.start, puzzle.end, puzzle.rows, puzzle.cols, puzzle.checkpoints);
         setGameState(s => s ? { ...s, parPath: optPath, powerupsUsed: newUsed } : s);
         setShowArcade(false);
         break;

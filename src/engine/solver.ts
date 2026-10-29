@@ -110,7 +110,8 @@ export function solveWithOpenCells(
   return null;
 }
 
-// Dijkstra solver with ice, sand, traps, and checkpoints.
+// Dijkstra solver with all features for par calculation.
+// Trivia walls are passable (cost 1) — par assumes perfect trivia answers.
 // Ice costs 0 moves (free slide). Sand costs 2 moves. Traps are avoided.
 // End only reachable when all checkpoints visited.
 export function solveWithFeatures(
@@ -156,7 +157,8 @@ export function solveWithFeatures(
       if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
 
       const ct = grid[nr][nc].type;
-      if (isBlocking(ct) || ct === CellType.Trap) continue;
+      // Only solid walls and traps block — trivia walls are passable
+      if (ct === CellType.Wall || ct === CellType.Trap) continue;
 
       const moveCost = ct === CellType.Ice ? 0 : ct === CellType.Sand ? 2 : 1;
       let newMask = mask;
@@ -169,6 +171,85 @@ export function solveWithFeatures(
 
       if (newCost < dist[nr][nc][newMask]) {
         dist[nr][nc][newMask] = newCost;
+        pq.push([newCost, nr, nc, newMask]);
+      }
+    }
+  }
+
+  return null;
+}
+
+// Path reconstruction for par path powerup — trivia walls passable, ice free.
+export function solvePathWithFeatures(
+  grid: Cell[][],
+  start: [number, number],
+  end: [number, number],
+  rows: number,
+  cols: number,
+  checkpoints: [number, number][]
+): [number, number][] | null {
+  const numCp = checkpoints.length;
+  const fullMask = (1 << numCp) - 1;
+
+  const checkpointAt = new Map<string, number>();
+  checkpoints.forEach(([r, c], i) => checkpointAt.set(`${r},${c}`, i));
+
+  const maskCount = fullMask + 1;
+  const dist: number[][][] = Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () => new Array(maskCount).fill(Infinity))
+  );
+  const parent = new Map<string, string>();
+
+  const stateKey = (r: number, c: number, mask: number) => `${r},${c},${mask}`;
+
+  let startMask = 0;
+  const scp = checkpointAt.get(`${start[0]},${start[1]}`);
+  if (scp !== undefined) startMask |= (1 << scp);
+
+  dist[start[0]][start[1]][startMask] = 0;
+  const pq: [number, number, number, number][] = [[0, start[0], start[1], startMask]];
+
+  while (pq.length > 0) {
+    let minIdx = 0;
+    for (let i = 1; i < pq.length; i++) {
+      if (pq[i][0] < pq[minIdx][0]) minIdx = i;
+    }
+    const [cost, r, c, mask] = pq[minIdx];
+    pq.splice(minIdx, 1);
+
+    if (r === end[0] && c === end[1] && mask === fullMask) {
+      // Reconstruct path
+      const path: [number, number][] = [];
+      let sk = stateKey(r, c, mask);
+      while (sk) {
+        const parts = sk.split(',').map(Number);
+        path.unshift([parts[0], parts[1]]);
+        sk = parent.get(sk)!;
+      }
+      return path;
+    }
+
+    if (cost > dist[r][c][mask]) continue;
+
+    for (const [dr, dc] of DIRS) {
+      const nr = r + dr, nc = c + dc;
+      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+
+      const ct = grid[nr][nc].type;
+      if (ct === CellType.Wall || ct === CellType.Trap) continue;
+
+      const moveCost = ct === CellType.Ice ? 0 : ct === CellType.Sand ? 2 : 1;
+      let newMask = mask;
+      const cpIdx = checkpointAt.get(`${nr},${nc}`);
+      if (cpIdx !== undefined) newMask |= (1 << cpIdx);
+
+      if (ct === CellType.End && newMask !== fullMask) continue;
+
+      const newCost = cost + moveCost;
+
+      if (newCost < dist[nr][nc][newMask]) {
+        dist[nr][nc][newMask] = newCost;
+        parent.set(stateKey(nr, nc, newMask), stateKey(r, c, mask));
         pq.push([newCost, nr, nc, newMask]);
       }
     }
