@@ -220,48 +220,52 @@ function placeSpecialTiles(puzzle: Puzzle, rng: () => number): Puzzle {
   const pathSet = new Set(optPath?.map(([r, c]) => `${r},${c}`) || []);
   const offPath = emptyCells.filter(([r, c]) => !pathSet.has(`${r},${c}`));
 
-  // --- CHECKPOINTS (2, spread apart, off the optimal path) ---
+  // --- CHECKPOINTS (2, near optimal path but not on it — small detours, not dead ends) ---
   const checkpoints: [number, number][] = [];
-  const shuffledOff = [...offPath].sort(() => rng() - 0.5);
 
-  // First pass: strict constraints
-  for (const [r, c] of shuffledOff) {
-    if (checkpoints.length >= 2) break;
-    const tooClose = checkpoints.some(([cr, cc]) =>
-      Math.abs(cr - r) + Math.abs(cc - c) < 5
-    );
-    if (tooClose) continue;
-    const nearStart = Math.abs(r - start[0]) + Math.abs(c - start[1]) < 3;
-    const nearEnd = Math.abs(r - end[0]) + Math.abs(c - end[1]) < 3;
-    if (nearStart || nearEnd) continue;
-    let openN = 0;
-    for (const [dr, dc] of dirs) {
-      const nr = r + dr, nc = c + dc;
-      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].type !== CellType.Wall) openN++;
-    }
-    if (openN < 2) continue;
-    checkpoints.push([r, c]);
-    grid[r][c] = { type: CellType.Checkpoint, checkpointIndex: checkpoints.length - 1 };
-  }
-  // Fallback: relax distance constraints if we didn't get 2
-  if (checkpoints.length < 2) {
-    for (const [r, c] of shuffledOff) {
-      if (checkpoints.length >= 2) break;
-      if (grid[r][c].type !== CellType.Empty) continue;
-      const tooClose = checkpoints.some(([cr, cc]) =>
-        Math.abs(cr - r) + Math.abs(cc - c) < 3
-      );
-      if (tooClose) continue;
+  // Score off-path cells by distance to the optimal path — prefer cells 1-3 steps off
+  const offPathScored = offPath
+    .filter(([r, c]) => grid[r][c].type === CellType.Empty)
+    .map(([r, c]) => {
+      // Manhattan distance to nearest path cell
+      let minDist = Infinity;
+      for (const pk of pathSet) {
+        const [pr, pc] = pk.split(',').map(Number);
+        const d = Math.abs(r - pr) + Math.abs(c - pc);
+        if (d < minDist) minDist = d;
+      }
+      return { r, c, dist: minDist };
+    })
+    .filter(({ r, c, dist }) => {
+      if (dist > 4) return false; // too far — would create huge detour
+      const nearStart = Math.abs(r - start[0]) + Math.abs(c - start[1]) < 3;
+      const nearEnd = Math.abs(r - end[0]) + Math.abs(c - end[1]) < 3;
+      if (nearStart || nearEnd) return false;
+      // Must have at least 2 open neighbors (not a dead end)
       let openN = 0;
       for (const [dr, dc] of dirs) {
         const nr = r + dr, nc = c + dc;
         if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].type !== CellType.Wall) openN++;
       }
-      if (openN < 2) continue;
-      checkpoints.push([r, c]);
-      grid[r][c] = { type: CellType.Checkpoint, checkpointIndex: checkpoints.length - 1 };
-    }
+      return openN >= 2;
+    })
+    .sort((a, b) => {
+      // Prefer 1-2 steps off path, with some randomness
+      const scoreA = Math.abs(a.dist - 2) + rng() * 2;
+      const scoreB = Math.abs(b.dist - 2) + rng() * 2;
+      return scoreA - scoreB;
+    });
+
+  for (const { r, c } of offPathScored) {
+    if (checkpoints.length >= 2) break;
+    const tooClose = checkpoints.some(([cr, cc]) =>
+      Math.abs(cr - r) + Math.abs(cc - c) < 5
+    );
+    if (tooClose) continue;
+    checkpoints.push([r, c]);
+    grid[r][c] = { type: CellType.Checkpoint, checkpointIndex: checkpoints.length - 1 };
   }
+  const shuffledOff = [...offPath].sort(() => rng() - 0.5);
 
   // --- ICE PATCHES (find corridors of 3+ empty cells in a line) ---
   const corridors: { cells: [number, number][]; }[] = [];
@@ -343,15 +347,35 @@ function placeSpecialTiles(puzzle: Puzzle, rng: () => number): Puzzle {
   }
 
   // --- RECALCULATE PAR with features ---
-  const newPar = solveWithFeatures(grid, start, end, rows, cols, checkpoints);
-  if (newPar === null) {
-    // Checkpoints made puzzle unsolvable — remove them and retry
-    for (const [r, c] of checkpoints) {
-      grid[r][c] = { type: CellType.Empty };
+  const basePar = solveWithFeatures(grid, start, end, rows, cols, []);
+  let finalCheckpoints = checkpoints;
+  let newPar = solveWithFeatures(grid, start, end, rows, cols, checkpoints);
+
+  if (newPar === null || (basePar !== null && newPar > basePar * 1.6)) {
+    // Checkpoints inflate par too much or make puzzle unsolvable
+    // Try with just 1 checkpoint
+    if (checkpoints.length > 1) {
+      grid[checkpoints[1][0]][checkpoints[1][1]] = { type: CellType.Empty };
+      const oneCp = [checkpoints[0]];
+      const onepar = solveWithFeatures(grid, start, end, rows, cols, oneCp);
+      if (onepar !== null && (basePar === null || onepar <= basePar * 1.6)) {
+        finalCheckpoints = oneCp;
+        newPar = onepar;
+      } else {
+        // Drop all checkpoints
+        grid[checkpoints[0][0]][checkpoints[0][1]] = { type: CellType.Empty };
+        finalCheckpoints = [];
+        newPar = basePar;
+      }
+    } else {
+      // Drop single checkpoint
+      if (checkpoints.length > 0) {
+        grid[checkpoints[0][0]][checkpoints[0][1]] = { type: CellType.Empty };
+      }
+      finalCheckpoints = [];
+      newPar = basePar;
     }
-    const basePar = solveWithFeatures(grid, start, end, rows, cols, []);
-    return { ...puzzle, par: basePar ?? puzzle.par, checkpoints: [] };
   }
 
-  return { ...puzzle, par: newPar, checkpoints };
+  return { ...puzzle, par: newPar ?? puzzle.par, checkpoints: finalCheckpoints };
 }
