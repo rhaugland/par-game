@@ -562,20 +562,51 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         </div>
       </div>
 
-      {/* Round score pill */}
-      {round.holes.length > 0 && (
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '4px 14px', borderRadius: 100, marginBottom: 8,
-          background: dark ? '#1e1e1e' : '#f5f5f5',
-          fontSize: 12, fontWeight: 600, color: cumScore <= 0 ? '#4caf50' : '#ff9800',
-        }}>
-          Round: {cumScore <= 0 ? cumScore : `+${cumScore}`}
-          <span style={{ color: t.sub2, fontWeight: 400 }}>
-            thru {round.holes.length}
-          </span>
-        </div>
-      )}
+      {/* Hole navigation strip */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8,
+        flexWrap: 'wrap', justifyContent: 'center',
+      }}>
+        {Array.from({ length: HOLES_PER_ROUND }, (_, i) => {
+          const hole = round.holes[i];
+          const played = !!hole;
+          const s = hole?.score ?? 0;
+          const isCurrent = i + 1 === holeNumber;
+          const isNext = !played && i + 1 === round.currentHole;
+          return (
+            <div
+              key={i}
+              onClick={() => handlePlayHole(i + 1)}
+              style={{
+                width: 30, height: 30, borderRadius: 7,
+                background: played
+                  ? s <= -2 ? '#1b5e20' : s === -1 ? '#4caf50' : s === 0 ? '#ff9800' : '#ef5350'
+                  : isNext
+                    ? (dark ? '#2a3a2a' : '#e8f5e9')
+                    : (dark ? '#2a2a2a' : '#f0f0f0'),
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 10, fontWeight: 700,
+                color: played ? '#fff' : (dark ? '#666' : '#999'),
+                cursor: 'pointer',
+                border: isCurrent ? `2px solid ${dark ? '#fff' : '#1a1a2e'}`
+                  : isNext ? '1.5px solid #4caf50' : '1.5px solid transparent',
+                WebkitTapHighlightColor: 'transparent',
+                transition: 'transform 0.1s',
+              }}
+            >
+              {played ? (s <= 0 ? s : `+${s}`) : (i + 1)}
+            </div>
+          );
+        })}
+        {round.holes.length > 0 && (
+          <div style={{
+            fontSize: 12, fontWeight: 600, marginLeft: 6,
+            color: cumScore <= 0 ? '#4caf50' : '#ff9800',
+          }}>
+            {cumScore <= 0 ? cumScore : `+${cumScore}`}
+          </div>
+        )}
+      </div>
 
       {/* Hints */}
       {!gameState.completed && moves === 0 && !gameState.bombMode && (
@@ -726,6 +757,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
           dark={dark}
           onNextHole={handleNextHole}
           onEndRound={handleEndRound}
+          onGoToHole={(h) => { setShowHoleSummary(false); handlePlayHole(h); }}
         />
       )}
 

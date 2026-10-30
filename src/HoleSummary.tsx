@@ -9,9 +9,10 @@ interface Props {
   dark: boolean;
   onNextHole: () => void;
   onEndRound: () => void;
+  onGoToHole: (holeNum: number) => void;
 }
 
-export default function HoleSummary({ round, holeScore, holeMoves, holePar, dark, onNextHole, onEndRound }: Props) {
+export default function HoleSummary({ round, holeScore, holeMoves, holePar, dark, onNextHole, onEndRound, onGoToHole }: Props) {
   const bg = dark ? '#1a1a1a' : '#fff';
   const text = dark ? '#e0e0e0' : '#1a1a2e';
   const sub = dark ? '#666' : '#9e9e9e';
@@ -70,22 +71,31 @@ export default function HoleSummary({ round, holeScore, holeMoves, holePar, dark
           </div>
         </div>
 
-        {/* Mini scorecard */}
+        {/* Mini scorecard — tappable */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 16, flexWrap: 'wrap' }}>
           {Array.from({ length: HOLES_PER_ROUND }, (_, i) => {
             const hole = round.holes[i];
             const played = !!hole;
             const s = hole?.score ?? 0;
+            const isNext = !played && i + 1 === round.currentHole;
             return (
-              <div key={i} style={{
-                width: 28, height: 28, borderRadius: 6,
-                background: played
-                  ? s <= -2 ? '#1b5e20' : s === -1 ? '#4caf50' : s === 0 ? '#ff9800' : '#ef5350'
-                  : (dark ? '#2a2a2a' : '#f0f0f0'),
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 10, fontWeight: 700,
-                color: played ? '#fff' : (dark ? '#444' : '#ccc'),
-              }}>
+              <div
+                key={i}
+                onClick={() => onGoToHole(i + 1)}
+                style={{
+                  width: 28, height: 28, borderRadius: 6,
+                  background: played
+                    ? s <= -2 ? '#1b5e20' : s === -1 ? '#4caf50' : s === 0 ? '#ff9800' : '#ef5350'
+                    : isNext
+                      ? (dark ? '#2a3a2a' : '#e8f5e9')
+                      : (dark ? '#2a2a2a' : '#f0f0f0'),
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, fontWeight: 700,
+                  color: played ? '#fff' : (dark ? '#666' : '#999'),
+                  cursor: 'pointer',
+                  border: isNext ? '1.5px solid #4caf50' : 'none',
+                  WebkitTapHighlightColor: 'transparent',
+                }}>
                 {played ? (s <= 0 ? s : `+${s}`) : i + 1}
               </div>
             );
