@@ -276,14 +276,10 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     setShowRounds(true);
   }, [round]);
 
-  const handleStartNewRound = useCallback(() => {
-    const seed = todaySeed();
-    const newRound = initRound(seed);
-    setRound(newRound);
-    saveRound(newRound);
-    setHoleNumber(1);
-    loadCurrentHole(1);
+  const handlePlayHole = useCallback((holeNum: number) => {
     setShowRounds(false);
+    setHoleNumber(holeNum);
+    loadCurrentHole(holeNum);
   }, [loadCurrentHole]);
 
   const handleTriviaTap = useCallback((_r: number, _c: number, question: TriviaQuestion) => {
@@ -658,25 +654,12 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
             style={{
               background: '#1a1a2e', color: '#fff', border: 'none',
               padding: '12px 32px', borderRadius: 100, fontSize: 14,
-              fontWeight: 600, cursor: 'pointer', marginRight: 8,
+              fontWeight: 600, cursor: 'pointer',
               WebkitTapHighlightColor: 'transparent',
             }}
           >
             View Scorecard
           </button>
-          {round.ended && round.holes.length < HOLES_PER_ROUND && (
-            <button
-              onClick={handleStartNewRound}
-              style={{
-                background: 'none', color: t.sub2, border: `1.5px solid ${t.divider}`,
-                padding: '12px 24px', borderRadius: 100, fontSize: 13,
-                fontWeight: 600, cursor: 'pointer',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              New Round
-            </button>
-          )}
         </div>
       )}
 
@@ -761,7 +744,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         dark={dark}
       />
       <LoginModal visible={showLogin} onClose={() => setShowLogin(false)} />
-      <RoundScorecard visible={showRounds} onClose={() => setShowRounds(false)} currentRound={round} dark={dark} />
+      <RoundScorecard visible={showRounds} onClose={() => setShowRounds(false)} currentRound={round} dark={dark} onPlayHole={handlePlayHole} />
     </div>
   );
 }
