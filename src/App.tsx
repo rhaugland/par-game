@@ -729,8 +729,8 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         />
       )}
 
-      <ScoreModal visible={showScore} gameState={gameState} puzzle={puzzle} onClose={() => setShowScore(false)} isSignedIn={isSignedIn} />
-      <StatsModal visible={showStats} onClose={() => setShowStats(false)} onViewHole={() => {}} isSignedIn={isSignedIn} />
+      <ScoreModal visible={showScore} gameState={gameState} puzzle={puzzle} round={round} holeNumber={holeNumber} onClose={() => setShowScore(false)} />
+      <StatsModal visible={showStats} onClose={() => setShowStats(false)} currentRound={round} dark={dark} />
       <ArcadeModal
         visible={showArcade}
         onClose={() => setShowArcade(false)}
