@@ -149,21 +149,46 @@ function BinocularsIcon({ color }: { color: string }) {
   );
 }
 
-const POWERUPS: { type: PowerupType; label: string; icon: (color: string) => React.ReactNode; desc: string }[] = [
-  { type: 'backspace', label: 'Undo', icon: (c) => <UndoIcon color={c} />, desc: 'Undo your last move' },
-  { type: 'trivia_retry', label: 'Retry Q', icon: (c) => <RetryIcon color={c} />, desc: 'Retry a failed trivia question' },
-  { type: 'bomb', label: 'Bomb', icon: (c) => <BombIcon color={c} />, desc: 'Destroy any wall cell' },
-  { type: 'melt_ice', label: 'Melt Ice', icon: (c) => <IceIcon color={c} />, desc: 'Remove an ice tile (loses free move)' },
-  { type: 'pave_sand', label: 'Pave Sand', icon: (c) => <SandIcon color={c} />, desc: 'Tap a sand tile to remove the penalty' },
-  { type: 'skip_checkpoint', label: 'Skip CP', icon: (c) => <FlagIcon color={c} />, desc: 'Skip one unvisited checkpoint' },
-  { type: 'trivia_skip', label: 'Skip Q', icon: (c) => <SkipIcon color={c} />, desc: 'Dismiss a trivia question' },
-  { type: 'puzzle_retry', label: 'Restart', icon: (c) => <RestartIcon color={c} />, desc: 'Restart the puzzle fresh' },
-  { type: 'par_path', label: 'Par Path', icon: (c) => <EyeIcon color={c} />, desc: 'Reveal the optimal route' },
-  { type: 'mulligan', label: 'Mulligan', icon: (c) => <MulliganIcon color={c} />, desc: 'Replay a completed hole, keep better score' },
-  { type: 'stroke_eraser', label: 'Eraser', icon: (c) => <EraserIcon color={c} />, desc: 'Remove 1 stroke from your round total' },
-  { type: 'time_freeze', label: 'Freeze', icon: (c) => <ClockIcon color={c} />, desc: 'Add 30 seconds to the clock' },
-  { type: 'scout', label: 'Scout', icon: (c) => <BinocularsIcon color={c} />, desc: 'Preview par path for 3 seconds' },
+interface PowerupEntry { type: PowerupType; label: string; icon: (color: string) => React.ReactNode; desc: string }
+interface PowerupSection { heading: string; items: PowerupEntry[] }
+
+const POWERUP_SECTIONS: PowerupSection[] = [
+  {
+    heading: 'Movement',
+    items: [
+      { type: 'backspace', label: 'Undo', icon: (c) => <UndoIcon color={c} />, desc: 'Undo your last move' },
+      { type: 'bomb', label: 'Bomb', icon: (c) => <BombIcon color={c} />, desc: 'Destroy any wall cell' },
+      { type: 'melt_ice', label: 'Melt Ice', icon: (c) => <IceIcon color={c} />, desc: 'Remove an ice tile (loses free move)' },
+      { type: 'pave_sand', label: 'Pave Sand', icon: (c) => <SandIcon color={c} />, desc: 'Tap a sand tile to remove the penalty' },
+      { type: 'skip_checkpoint', label: 'Skip CP', icon: (c) => <FlagIcon color={c} />, desc: 'Skip one unvisited checkpoint' },
+    ],
+  },
+  {
+    heading: 'Trivia',
+    items: [
+      { type: 'trivia_retry', label: 'Retry Q', icon: (c) => <RetryIcon color={c} />, desc: 'Retry a failed trivia question' },
+      { type: 'trivia_skip', label: 'Skip Q', icon: (c) => <SkipIcon color={c} />, desc: 'Dismiss a trivia question' },
+    ],
+  },
+  {
+    heading: 'Time & Vision',
+    items: [
+      { type: 'time_freeze', label: 'Freeze', icon: (c) => <ClockIcon color={c} />, desc: 'Add 30 seconds to the clock' },
+      { type: 'scout', label: 'Scout', icon: (c) => <BinocularsIcon color={c} />, desc: 'Preview par path for 3 seconds' },
+      { type: 'par_path', label: 'Par Path', icon: (c) => <EyeIcon color={c} />, desc: 'Reveal the optimal route' },
+    ],
+  },
+  {
+    heading: 'Round',
+    items: [
+      { type: 'puzzle_retry', label: 'Restart', icon: (c) => <RestartIcon color={c} />, desc: 'Restart the puzzle fresh' },
+      { type: 'mulligan', label: 'Mulligan', icon: (c) => <MulliganIcon color={c} />, desc: 'Replay a completed hole, keep better score' },
+      { type: 'stroke_eraser', label: 'Eraser', icon: (c) => <EraserIcon color={c} />, desc: 'Remove 1 stroke from your round total' },
+    ],
+  },
 ];
+
+const ALL_POWERUPS = POWERUP_SECTIONS.flatMap(s => s.items);
 
 export default function ArcadeModal({ visible, onClose, tickets, inventory, powerupsUsed, completed, hasFailed, onBuy, onUse, dark }: Props) {
   const [selected, setSelected] = useState<PowerupType | null>(null);
@@ -179,7 +204,7 @@ export default function ArcadeModal({ visible, onClose, tickets, inventory, powe
   const border = dark ? '#333' : '#e8e8e8';
   const iconColor = dark ? '#aaa' : '#555';
 
-  const selectedItem = selected ? POWERUPS.find(p => p.type === selected) : null;
+  const selectedItem = selected ? ALL_POWERUPS.find(p => p.type === selected) : null;
   const selectedCost = selected ? POWERUP_COSTS[selected] : 0;
   const totalCost = selectedCost * qty;
   const maxAffordable = selected ? Math.floor(tickets / selectedCost) : 0;
@@ -220,7 +245,7 @@ export default function ArcadeModal({ visible, onClose, tickets, inventory, powe
 
         {/* Inventory section — only if you own something */}
         {(() => {
-          const ownedItems = POWERUPS.filter(p => (inventory[p.type] || 0) > 0);
+          const ownedItems = ALL_POWERUPS.filter(p => (inventory[p.type] || 0) > 0);
           if (ownedItems.length === 0) return null;
           return (
             <>
@@ -278,45 +303,52 @@ export default function ArcadeModal({ visible, onClose, tickets, inventory, powe
           );
         })()}
 
-        {/* Shop section */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: sub, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
-          Power-Up Shop
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {POWERUPS.map(({ type, label, icon, desc }) => {
-            const cost = POWERUP_COSTS[type];
-
-            return (
-              <div key={type} onClick={() => openPurchase(type)} style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '10px 14px', borderRadius: 14,
-                background: cardBg, border: `1.5px solid ${border}`,
-                cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
-              }}>
-                <div style={{
-                  width: 38, height: 38, borderRadius: 10,
-                  background: dark ? '#333' : '#eee',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0,
-                }}>
-                  {icon(iconColor)}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: text }}>{label}</div>
-                  <div style={{ fontSize: 10, color: sub, marginTop: 1 }}>{desc}</div>
-                </div>
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  fontSize: 12, fontWeight: 700,
-                  color: dark ? '#888' : '#999',
-                  flexShrink: 0,
-                }}>
-                  {cost}<TokenIcon size={10} color={dark ? '#888' : '#999'} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        {/* Shop sections */}
+        {POWERUP_SECTIONS.map((section) => (
+          <div key={section.heading} style={{ marginBottom: 16 }}>
+            <div style={{
+              fontSize: 10, fontWeight: 700, color: sub,
+              letterSpacing: 2, textTransform: 'uppercase',
+              marginBottom: 6, marginTop: 4,
+            }}>
+              {section.heading}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {section.items.map(({ type, label, icon, desc }) => {
+                const cost = POWERUP_COSTS[type];
+                return (
+                  <div key={type} onClick={() => openPurchase(type)} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '10px 14px', borderRadius: 14,
+                    background: cardBg, border: `1.5px solid ${border}`,
+                    cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+                  }}>
+                    <div style={{
+                      width: 38, height: 38, borderRadius: 10,
+                      background: dark ? '#333' : '#eee',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      {icon(iconColor)}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: text }}>{label}</div>
+                      <div style={{ fontSize: 10, color: sub, marginTop: 1 }}>{desc}</div>
+                    </div>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      fontSize: 12, fontWeight: 700,
+                      color: dark ? '#888' : '#999',
+                      flexShrink: 0,
+                    }}>
+                      {cost}<TokenIcon size={10} color={dark ? '#888' : '#999'} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
 
         <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11, color: sub }}>
           Earn tokens by scoring Par or better
