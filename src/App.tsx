@@ -448,8 +448,53 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         setShowArcade(false);
         break;
       }
+      case 'mulligan': {
+        // Find completed holes the player can replay
+        if (round.holes.length === 0) return;
+        // Replay current hole from scratch (re-generates the same puzzle)
+        // The old score stays; when they finish, keep the better score
+        setGameState(s => {
+          if (!s) return s;
+          return { ...createGameState(puzzle), powerupsUsed: newUsed };
+        });
+        setElapsed(0);
+        setTimerStarted(false);
+        setShowArcade(false);
+        break;
+      }
+      case 'stroke_eraser': {
+        // Remove 1 stroke from round total by adjusting the worst hole's score
+        if (round.holes.length === 0) return;
+        const worstIdx = round.holes.reduce((wi, h, i, arr) => h.score > arr[wi].score ? i : wi, 0);
+        const updatedHoles = round.holes.map((h, i) =>
+          i === worstIdx ? { ...h, score: h.score - 1 } : h
+        );
+        const updatedRound = { ...round, holes: updatedHoles };
+        setRound(updatedRound);
+        saveRound(updatedRound);
+        setGameState(s => s ? { ...s, powerupsUsed: newUsed } : s);
+        setShowArcade(false);
+        break;
+      }
+      case 'time_freeze': {
+        // Add 30 seconds by rolling back elapsed time
+        setElapsed(e => Math.max(0, e - 30));
+        setGameState(s => s ? { ...s, powerupsUsed: newUsed } : s);
+        setShowArcade(false);
+        break;
+      }
+      case 'scout': {
+        // Temporarily reveal par path for 3 seconds
+        const scoutPath = solvePathWithFeatures(puzzle.grid, puzzle.start, puzzle.end, puzzle.rows, puzzle.cols, puzzle.checkpoints);
+        setGameState(s => s ? { ...s, parPath: scoutPath, powerupsUsed: newUsed } : s);
+        setShowArcade(false);
+        setTimeout(() => {
+          setGameState(s => s ? { ...s, parPath: null } : s);
+        }, 3000);
+        break;
+      }
     }
-  }, [puzzle, gameState, inventory, isSignedIn]);
+  }, [puzzle, gameState, inventory, isSignedIn, round]);
 
   if (!puzzle || !gameState) return null;
 

@@ -108,6 +108,47 @@ function FlagIcon({ color }: { color: string }) {
   );
 }
 
+function MulliganIcon({ color }: { color: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12a9 9 0 0 0-9-9C7 3 3 7.03 3 12" />
+      <polyline points="21 3 21 12 12 12" />
+      <path d="M3 12a9 9 0 0 0 9 9c5 0 9-4.03 9-9" />
+    </svg>
+  );
+}
+
+function EraserIcon({ color }: { color: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 20H7L3 16l10-10 7 7-3 3" />
+      <path d="M6 11l7 7" />
+      <line x1="18" y1="20" x2="22" y2="20" />
+    </svg>
+  );
+}
+
+function ClockIcon({ color }: { color: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 8 14" />
+      <line x1="4" y1="4" x2="4.01" y2="4.01" />
+      <line x1="20" y1="4" x2="20.01" y2="4.01" />
+    </svg>
+  );
+}
+
+function BinocularsIcon({ color }: { color: string }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="7" cy="17" r="4" />
+      <circle cx="17" cy="17" r="4" />
+      <path d="M7 13V5a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v4h2V5a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v8" />
+    </svg>
+  );
+}
+
 const POWERUPS: { type: PowerupType; label: string; icon: (color: string) => React.ReactNode; desc: string }[] = [
   { type: 'backspace', label: 'Undo', icon: (c) => <UndoIcon color={c} />, desc: 'Undo your last move' },
   { type: 'trivia_retry', label: 'Retry Q', icon: (c) => <RetryIcon color={c} />, desc: 'Retry a failed trivia question' },
@@ -118,6 +159,10 @@ const POWERUPS: { type: PowerupType; label: string; icon: (color: string) => Rea
   { type: 'trivia_skip', label: 'Skip Q', icon: (c) => <SkipIcon color={c} />, desc: 'Dismiss a trivia question' },
   { type: 'puzzle_retry', label: 'Restart', icon: (c) => <RestartIcon color={c} />, desc: 'Restart the puzzle fresh' },
   { type: 'par_path', label: 'Par Path', icon: (c) => <EyeIcon color={c} />, desc: 'Reveal the optimal route' },
+  { type: 'mulligan', label: 'Mulligan', icon: (c) => <MulliganIcon color={c} />, desc: 'Replay a completed hole, keep better score' },
+  { type: 'stroke_eraser', label: 'Eraser', icon: (c) => <EraserIcon color={c} />, desc: 'Remove 1 stroke from your round total' },
+  { type: 'time_freeze', label: 'Freeze', icon: (c) => <ClockIcon color={c} />, desc: 'Add 30 seconds to the clock' },
+  { type: 'scout', label: 'Scout', icon: (c) => <BinocularsIcon color={c} />, desc: 'Preview par path for 3 seconds' },
 ];
 
 export default function ArcadeModal({ visible, onClose, tickets, inventory, powerupsUsed, completed, hasFailed, onBuy, onUse, dark }: Props) {
