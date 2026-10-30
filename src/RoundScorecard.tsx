@@ -1,4 +1,3 @@
-import { getScoreLabel } from './engine/game';
 import { DailyRound, HOLES_PER_ROUND, totalScore, totalPar, isRoundComplete } from './engine/round';
 import { getRoundHistory } from './storage';
 import { useState, useEffect } from 'react';

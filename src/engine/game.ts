@@ -25,10 +25,6 @@ export function isAdjacent(a: [number, number], b: [number, number]): boolean {
   return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) === 1;
 }
 
-function isPassable(type: CellType): boolean {
-  return type !== CellType.Wall && type !== CellType.TriviaWall;
-}
-
 export function canMoveTo(
   r: number,
   c: number,
