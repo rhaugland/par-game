@@ -1,4 +1,4 @@
-import { DailyRound, HOLES_PER_ROUND, totalScore, totalPar, isRoundComplete } from './engine/round';
+import { DailyRound, HOLES_PER_ROUND, totalScore, totalPar, isRoundComplete, getHoleResult, nextUnplayedHole } from './engine/round';
 import { getRoundHistory } from './storage';
 import { useState, useEffect } from 'react';
 
@@ -50,11 +50,11 @@ function ScorecardRow({ round, dark, onPlayHole }: { round: DailyRound; dark: bo
       {/* Mini hole scores with hole numbers */}
       <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
         {Array.from({ length: HOLES_PER_ROUND }, (_, i) => {
-          const hole = round.holes[i];
+          const hole = getHoleResult(round, i + 1);
           const played = !!hole;
           const s = hole?.score ?? 0;
-          const isNextHole = !played && i + 1 === round.currentHole && !round.ended;
-          const canClick = onPlayHole && (played || isNextHole);
+          const isNextHole = !played && i + 1 === nextUnplayedHole(round) && !round.ended;
+          const canClick = !!onPlayHole;
           return (
             <div
               key={i}

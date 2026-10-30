@@ -4,7 +4,7 @@ import { createGameState, addToPath, getMoves } from './engine/game';
 import { solvePathWithFeatures } from './engine/solver';
 import { todaySeed } from './engine/seed';
 import { Puzzle, GameState, TriviaQuestion, PowerupType, POWERUP_COSTS, POWERUP_LIMITS } from './engine/types';
-import { DailyRound, HoleResult, HOLES_PER_ROUND, gridSizeForHole, holeSeed, totalScore, isRoundComplete } from './engine/round';
+import { DailyRound, HoleResult, HOLES_PER_ROUND, gridSizeForHole, holeSeed, totalScore, isRoundComplete, getHoleResult, nextUnplayedHole } from './engine/round';
 import {
   setLocalTickets, setLocalInventory,
   getLocalTickets, getLocalInventory, syncRecordsFromApi,
@@ -237,10 +237,15 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
 
         setGameState(prev => prev ? { ...prev, score: finalScore } : prev);
 
+        // Replace if replaying, otherwise append
+        const existingIdx = round.holes.findIndex(h => h.holeNumber === holeNumber);
+        const newHoles = existingIdx >= 0
+          ? round.holes.map((h, i) => i === existingIdx ? holeResult : h)
+          : [...round.holes, holeResult];
         const updatedRound: DailyRound = {
           ...round,
-          holes: [...round.holes, holeResult],
-          currentHole: holeNumber + 1,
+          holes: newHoles,
+          currentHole: holeNumber,
         };
         setRound(updatedRound);
         saveRound(updatedRound);
@@ -263,10 +268,13 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
 
   const handleNextHole = useCallback(() => {
     setShowHoleSummary(false);
-    const nextHole = holeNumber + 1;
-    setHoleNumber(nextHole);
-    loadCurrentHole(nextHole);
-  }, [holeNumber, loadCurrentHole]);
+    // Go to next unplayed hole
+    const next = nextUnplayedHole(round);
+    if (next <= HOLES_PER_ROUND) {
+      setHoleNumber(next);
+      loadCurrentHole(next);
+    }
+  }, [round, loadCurrentHole]);
 
   const handleEndRound = useCallback(() => {
     setShowHoleSummary(false);
@@ -568,11 +576,11 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         flexWrap: 'wrap', justifyContent: 'center',
       }}>
         {Array.from({ length: HOLES_PER_ROUND }, (_, i) => {
-          const hole = round.holes[i];
+          const hole = getHoleResult(round, i + 1);
           const played = !!hole;
           const s = hole?.score ?? 0;
           const isCurrent = i + 1 === holeNumber;
-          const isNext = !played && i + 1 === round.currentHole;
+          const isNext = !played && i + 1 === nextUnplayedHole(round);
           return (
             <div
               key={i}
@@ -751,6 +759,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
       {showHoleSummary && (
         <HoleSummary
           round={round}
+          holeNumber={holeNumber}
           holeScore={lastHoleScore}
           holeMoves={lastHoleMoves}
           holePar={lastHolePar}
