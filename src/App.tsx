@@ -95,6 +95,26 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     if (getToken) setAuthTokenGetter(getToken);
   }, [getToken]);
 
+  // Track visit for analytics
+  useEffect(() => {
+    const VISITOR_KEY = 'par_visitor_id';
+    let vid = localStorage.getItem(VISITOR_KEY);
+    if (!vid) {
+      vid = crypto.randomUUID();
+      localStorage.setItem(VISITOR_KEY, vid);
+    }
+    (async () => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const token = await getToken?.();
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      fetch('/api/ping', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ visitorId: vid }),
+      }).catch(() => {});
+    })();
+  }, [isSignedIn]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (isSignedIn) {
       fetchProfile().then(p => {
