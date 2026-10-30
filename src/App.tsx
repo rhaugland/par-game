@@ -2,11 +2,13 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { generatePuzzle } from './engine/generator';
 import { createGameState, addToPath, getMoves, getScoreLabel } from './engine/game';
 import { solvePathWithFeatures } from './engine/solver';
-import { todaySeed, dayNumber, seedForDay } from './engine/seed';
+import { todaySeed, dayNumber } from './engine/seed';
 import { Puzzle, GameState, TriviaQuestion, PowerupType, POWERUP_COSTS, POWERUP_LIMITS } from './engine/types';
+import { DailyRound, HoleResult, HOLES_PER_ROUND, gridSizeForHole, holeSeed, totalScore, isRoundComplete } from './engine/round';
 import {
-  saveRecord, getTodayRecord, setLocalTickets, setLocalInventory,
+  setLocalTickets, setLocalInventory,
   getLocalTickets, getLocalInventory, syncRecordsFromApi,
+  getRound, saveRound,
 } from './storage';
 import { setAuthTokenGetter, buyPowerup as apiBuyPowerup, usePowerupApi, fetchProfile } from './lib/api';
 import { useClerkAuth } from './useClerkAuth';
@@ -17,6 +19,8 @@ import TriviaModal from './TriviaModal';
 import ArcadeModal from './ArcadeModal';
 import LoginModal from './LoginModal';
 import LandingPage from './LandingPage';
+import HoleSummary from './HoleSummary';
+import RoundScorecard from './RoundScorecard';
 
 function fmtTime(s: number): string {
   const m = Math.floor(s / 60);
@@ -26,10 +30,20 @@ function fmtTime(s: number): string {
 
 const DARK_KEY = 'par_dark_mode';
 const LANDING_KEY = 'par_seen_landing';
-const TIMER_DURATION = 75; // seconds
-const FIRST_TIMER_DURATION = 120; // 2 minutes for first-time players
 const PLAYED_KEY = 'par_has_played';
-const OVERTIME_INTERVAL = 15; // +1 per 15s over
+const TIMER_DURATION = 75;
+const FIRST_TIMER_DURATION = 120;
+const OVERTIME_INTERVAL = 15;
+
+function initRound(date: string): DailyRound {
+  return { date, holes: [], currentHole: 1, ended: false };
+}
+
+function loadHolePuzzle(daySeed: string, holeNum: number): Puzzle {
+  const seed = holeSeed(daySeed, holeNum);
+  const size = gridSizeForHole(holeNum);
+  return generatePuzzle(seed, size);
+}
 
 export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
@@ -38,6 +52,8 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
   const [showStats, setShowStats] = useState(false);
   const [showArcade, setShowArcade] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const [showRounds, setShowRounds] = useState(false);
+  const [showHoleSummary, setShowHoleSummary] = useState(false);
   const [triviaTarget, setTriviaTarget] = useState<{ r: number; c: number; question: TriviaQuestion } | null>(null);
   const [dark, setDark] = useState(() => localStorage.getItem(DARK_KEY) === '1');
   const [tickets, setTickets] = useState(0);
@@ -45,6 +61,20 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
   const [trapFlash, setTrapFlash] = useState(false);
   const [showLanding, setShowLanding] = useState(() => !localStorage.getItem(LANDING_KEY));
   const [isFirstPlay] = useState(() => !localStorage.getItem(PLAYED_KEY));
+
+  // Round state
+  const [round, setRound] = useState<DailyRound>(() => {
+    const seed = todaySeed();
+    return getRound(seed) || initRound(seed);
+  });
+  const [holeNumber, setHoleNumber] = useState(() => {
+    const seed = todaySeed();
+    const existing = getRound(seed);
+    return existing ? existing.currentHole : 1;
+  });
+  const [lastHoleScore, setLastHoleScore] = useState(0);
+  const [lastHoleMoves, setLastHoleMoves] = useState(0);
+  const [lastHolePar, setLastHolePar] = useState(0);
 
   // Timer state
   const [elapsed, setElapsed] = useState(0);
@@ -82,19 +112,9 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
 
   useEffect(() => {
     if (isSignedIn) {
-      syncRecordsFromApi().then(() => {
-        const seed = todaySeed();
-        const record = getTodayRecord(seed);
-        if (record?.completed && puzzle) {
-          setGameState({
-            ...createGameState(puzzle),
-            path: record.path || [], drawing: false, completed: true,
-            score: record.score, powerupsUsed: record.powerups_used || {},
-          });
-        }
-      });
+      syncRecordsFromApi();
     }
-  }, [isSignedIn]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isSignedIn]);
 
   const toggleDark = () => {
     setDark(d => {
@@ -104,24 +124,39 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     });
   };
 
-  useEffect(() => {
+  // Load the current hole's puzzle
+  const loadCurrentHole = useCallback((holeNum: number) => {
     const seed = todaySeed();
-    const p = generatePuzzle(seed);
+    const p = loadHolePuzzle(seed, holeNum);
     setPuzzle(p);
-
-    const record = getTodayRecord(seed);
-    if (record?.completed) {
-      setGameState({
-        ...createGameState(p),
-        path: record.path || [], drawing: false, completed: true,
-        score: record.score, powerupsUsed: record.powerups_used || {},
-      });
-    } else {
-      setGameState(createGameState(p));
-    }
+    setGameState(createGameState(p));
+    setElapsed(0);
+    setTimerStarted(false);
   }, []);
 
-  // Timer management — pause while trivia is open
+  // Initialize on mount
+  useEffect(() => {
+    const seed = todaySeed();
+    const existing = getRound(seed);
+    if (existing && isRoundComplete(existing)) {
+      // Round is done — show scorecard state, load last hole for display
+      const lastHole = existing.holes[existing.holes.length - 1];
+      if (lastHole) {
+        const p = loadHolePuzzle(seed, lastHole.holeNumber);
+        setPuzzle(p);
+        setGameState({
+          ...createGameState(p),
+          path: lastHole.path, drawing: false, completed: true,
+          score: lastHole.score, powerupsUsed: {},
+        });
+      }
+    } else {
+      const hole = existing ? existing.currentHole : 1;
+      loadCurrentHole(hole);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Timer management
   useEffect(() => {
     if (timerStarted && !gameState?.completed && !triviaTarget) {
       timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
@@ -131,7 +166,6 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     };
   }, [timerStarted, gameState?.completed, triviaTarget]);
 
-  // Stop timer on completion
   useEffect(() => {
     if (gameState?.completed && timerRef.current) {
       clearInterval(timerRef.current);
@@ -139,7 +173,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     }
   }, [gameState?.completed]);
 
-  const timerDuration = isFirstPlay ? FIRST_TIMER_DURATION : TIMER_DURATION;
+  const timerDuration = isFirstPlay && holeNumber === 1 ? FIRST_TIMER_DURATION : TIMER_DURATION;
   const timePenalty = elapsed > timerDuration ? Math.floor((elapsed - timerDuration) / OVERTIME_INTERVAL) : 0;
   const timeLeft = timerDuration - elapsed;
 
@@ -148,15 +182,12 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     if (!pz) return;
     const gs = stateRef.current;
     if (!gs || gs.completed) return;
-
-    // Block interaction until play button is pressed
     if (!timerStarted) return;
 
     // Bomb mode
     if (gs.bombMode) {
-      const cell = pz.grid[r][c];
-      if (cell.type === 1 /* Wall */) {
-        pz.grid[r][c] = { type: 0 /* Empty */ };
+      if (pz.grid[r][c].type === 1) {
+        pz.grid[r][c] = { type: 0 };
         setGameState(s => s ? { ...s, bombMode: false } : s);
       }
       return;
@@ -164,8 +195,8 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
 
     // Melt ice mode
     if (gs.meltMode) {
-      if (pz.grid[r][c].type === 5 /* Ice */) {
-        pz.grid[r][c] = { type: 0 /* Empty */ };
+      if (pz.grid[r][c].type === 5) {
+        pz.grid[r][c] = { type: 0 };
         setGameState(s => s ? { ...s, meltMode: false } : s);
       }
       return;
@@ -173,8 +204,8 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
 
     // Pave sand mode
     if (gs.paveMode) {
-      if (pz.grid[r][c].type === 6 /* Sand */) {
-        pz.grid[r][c] = { type: 0 /* Empty */ };
+      if (pz.grid[r][c].type === 6) {
+        pz.grid[r][c] = { type: 0 };
         setGameState(s => s ? { ...s, paveMode: false } : s);
       }
       return;
@@ -182,7 +213,6 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
 
     const next = addToPath(gs, r, c, pz);
     if (next !== gs) {
-      // Check if trap was triggered (path reset)
       if (next.trapPenalty > gs.trapPenalty) {
         setTrapFlash(true);
         setTimeout(() => setTrapFlash(false), 1500);
@@ -190,23 +220,71 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
 
       setGameState(next);
       if (next.completed) {
-        // Add time penalty to score
         const finalScore = (next.score ?? 0) + timePenalty;
         const moves = getMoves(next, pz);
-        const record = {
-          date: todaySeed(), moves, par: pz.par,
-          score: finalScore, completed: true,
-          path: next.path, powerups_used: next.powerupsUsed,
-        };
-        setGameState(prev => prev ? { ...prev, score: finalScore } : prev);
         localStorage.setItem(PLAYED_KEY, '1');
-        saveRecord(record, isSignedIn).then(({ ticketsEarned }) => {
-          if (ticketsEarned > 0) setTickets(t => t + ticketsEarned);
-        });
-        setTimeout(() => setShowScore(true), 400);
+
+        // Save hole result to round
+        const holeResult: HoleResult = {
+          holeNumber,
+          moves,
+          par: pz.par,
+          score: finalScore,
+          path: next.path,
+          seed: holeSeed(todaySeed(), holeNumber),
+          gridSize: pz.cols,
+        };
+
+        setGameState(prev => prev ? { ...prev, score: finalScore } : prev);
+
+        const updatedRound: DailyRound = {
+          ...round,
+          holes: [...round.holes, holeResult],
+          currentHole: holeNumber + 1,
+        };
+        setRound(updatedRound);
+        saveRound(updatedRound);
+
+        setLastHoleScore(finalScore);
+        setLastHoleMoves(moves);
+        setLastHolePar(pz.par);
+
+        // Earn tickets per hole
+        const earned = finalScore <= -2 ? 5 : finalScore === -1 ? 3 : finalScore === 0 ? 1 : 0;
+        if (earned > 0) {
+          setTickets(t => t + earned);
+          setLocalTickets(getLocalTickets() + earned);
+        }
+
+        setTimeout(() => setShowHoleSummary(true), 400);
       }
     }
-  }, [isSignedIn, timePenalty, timerStarted]);
+  }, [isSignedIn, timePenalty, timerStarted, holeNumber, round]);
+
+  const handleNextHole = useCallback(() => {
+    setShowHoleSummary(false);
+    const nextHole = holeNumber + 1;
+    setHoleNumber(nextHole);
+    loadCurrentHole(nextHole);
+  }, [holeNumber, loadCurrentHole]);
+
+  const handleEndRound = useCallback(() => {
+    setShowHoleSummary(false);
+    const endedRound: DailyRound = { ...round, ended: true };
+    setRound(endedRound);
+    saveRound(endedRound);
+    setShowRounds(true);
+  }, [round]);
+
+  const handleStartNewRound = useCallback(() => {
+    const seed = todaySeed();
+    const newRound = initRound(seed);
+    setRound(newRound);
+    saveRound(newRound);
+    setHoleNumber(1);
+    loadCurrentHole(1);
+    setShowRounds(false);
+  }, [loadCurrentHole]);
 
   const handleTriviaTap = useCallback((_r: number, _c: number, question: TriviaQuestion) => {
     setTriviaTarget({ r: _r, c: _c, question });
@@ -330,7 +408,6 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
       }
       case 'skip_checkpoint': {
         if (puzzle.checkpoints.length === 0) return;
-        // Skip the first unvisited checkpoint
         const unvisited = puzzle.checkpoints.findIndex((_cp, i) => !gameState.checkpointsVisited.has(i));
         if (unvisited === -1) return;
         setGameState(s => {
@@ -350,26 +427,6 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     }
   }, [puzzle, gameState, inventory, isSignedIn]);
 
-  const handleViewHole = useCallback((day: number) => {
-    const seed = seedForDay(day);
-    const p = generatePuzzle(seed);
-    setPuzzle(p);
-    const record = getTodayRecord(seed);
-    if (record?.completed) {
-      setGameState({
-        ...createGameState(p),
-        path: record.path || [], drawing: false, completed: true,
-        score: record.score, powerupsUsed: record.powerups_used || {},
-      });
-    } else {
-      setGameState(createGameState(p));
-    }
-    setShowStats(false);
-    if (record?.completed) {
-      setTimeout(() => setShowScore(true), 300);
-    }
-  }, []);
-
   if (!puzzle || !gameState) return null;
 
   if (showLanding) {
@@ -384,15 +441,15 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     );
   }
 
-  const todayRecord = getTodayRecord(todaySeed());
-  const moves = gameState.completed && todayRecord ? todayRecord.moves : getMoves(gameState, puzzle);
+  const roundComplete = isRoundComplete(round);
+  const moves = getMoves(gameState, puzzle);
   const penalties = gameState.triviaPenalty + gameState.trapPenalty + (gameState.completed ? 0 : timePenalty);
-  const displayScore = gameState.completed && todayRecord
-    ? todayRecord.score
+  const displayScore = gameState.completed
+    ? (gameState.score ?? 0)
     : (moves + penalties) - puzzle.par;
   const diff = displayScore;
+  const cumScore = totalScore(round);
 
-  // Checkpoint status
   const cpTotal = puzzle.checkpoints.length;
   const cpDone = gameState.checkpointsVisited.size;
 
@@ -407,11 +464,11 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
   };
 
   return (
-    <div style={{ ...s.container, background: t.bg }}>
+    <div style={{ ...st.container, background: t.bg }}>
       {/* Header */}
-      <div style={s.headerRow}>
-        <div style={s.headerLeft}>
-          <button style={s.iconBtn} onClick={() => isSignedIn ? undefined : setShowLogin(true)}>
+      <div style={st.headerRow}>
+        <div style={st.headerLeft}>
+          <button style={st.iconBtn} onClick={() => isSignedIn ? undefined : setShowLogin(true)}>
             {isSignedIn ? (
               <div style={{
                 width: 28, height: 28, borderRadius: 14,
@@ -427,7 +484,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
               </svg>
             )}
           </button>
-          <button style={s.iconBtn} onClick={toggleDark}>
+          <button style={st.iconBtn} onClick={toggleDark}>
             {dark ? (
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.icon} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="5" />
@@ -443,18 +500,27 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
             )}
           </button>
         </div>
-        <div style={s.headerCenter}>
-          <div style={{ ...s.title, color: t.text }}>par puzzle</div>
-          <div style={{ ...s.day, color: t.sub }}>#{dayNumber()}</div>
+        <div style={st.headerCenter}>
+          <div style={{ ...st.title, color: t.text }}>par puzzle</div>
+          <div style={{ ...st.day, color: t.sub }}>
+            Hole {Math.min(holeNumber, HOLES_PER_ROUND)} of {HOLES_PER_ROUND}
+          </div>
         </div>
-        <div style={s.headerRight}>
-          <button style={s.iconBtn} onClick={() => setShowArcade(true)}>
+        <div style={st.headerRight}>
+          <button style={st.iconBtn} onClick={() => setShowArcade(true)}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.icon} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
               <circle cx="12" cy="12" r="4" />
             </svg>
           </button>
-          <button style={s.iconBtn} onClick={() => setShowStats(true)}>
+          <button style={st.iconBtn} onClick={() => setShowRounds(true)}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.icon} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+              <line x1="9" y1="4" x2="9" y2="22" />
+            </svg>
+          </button>
+          <button style={st.iconBtn} onClick={() => setShowStats(true)}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.icon} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="12" width="4" height="9" rx="1" />
               <rect x="10" y="7" width="4" height="14" rx="1" />
@@ -465,30 +531,30 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
       </div>
 
       {/* Stats strip */}
-      <div style={s.strip}>
-        <div style={s.col}>
-          <div style={{ ...s.num, color: t.text }}>{puzzle.par}</div>
-          <div style={{ ...s.lbl, color: t.sub }}>par</div>
+      <div style={st.strip}>
+        <div style={st.col}>
+          <div style={{ ...st.num, color: t.text }}>{puzzle.par}</div>
+          <div style={{ ...st.lbl, color: t.sub }}>par</div>
         </div>
-        <div style={{ ...s.divider, background: t.divider }} />
-        <div style={s.col}>
-          <div style={{ ...s.num, color: t.text }}>
+        <div style={{ ...st.divider, background: t.divider }} />
+        <div style={st.col}>
+          <div style={{ ...st.num, color: t.text }}>
             {moves}
             {penalties > 0 ? <span style={{ color: '#ef5350', fontSize: 16 }}> +{penalties}</span> : ''}
           </div>
-          <div style={{ ...s.lbl, color: t.sub }}>moves{penalties > 0 ? ' + pen' : ''}</div>
+          <div style={{ ...st.lbl, color: t.sub }}>moves{penalties > 0 ? ' + pen' : ''}</div>
         </div>
-        <div style={{ ...s.divider, background: t.divider }} />
-        <div style={s.col}>
-          <div style={{ ...s.num, color: diff <= 0 ? '#4caf50' : '#ff9800' }}>
+        <div style={{ ...st.divider, background: t.divider }} />
+        <div style={st.col}>
+          <div style={{ ...st.num, color: diff <= 0 ? '#4caf50' : '#ff9800' }}>
             {diff <= 0 ? diff : `+${diff}`}
           </div>
-          <div style={{ ...s.lbl, color: t.sub }}>+/-</div>
+          <div style={{ ...st.lbl, color: t.sub }}>+/-</div>
         </div>
-        <div style={{ ...s.divider, background: t.divider }} />
-        <div style={s.col}>
+        <div style={{ ...st.divider, background: t.divider }} />
+        <div style={st.col}>
           <div style={{
-            ...s.num,
+            ...st.num,
             color: !timerStarted ? t.text : timeLeft > 15 ? t.text : timeLeft > 0 ? '#ff9800' : '#ef5350',
             fontSize: 22,
           }}>
@@ -496,42 +562,56 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
               timeLeft > 0 ? fmtTime(timeLeft) :
               `+${fmtTime(Math.abs(timeLeft))}`}
           </div>
-          <div style={{ ...s.lbl, color: t.sub }}>time</div>
+          <div style={{ ...st.lbl, color: t.sub }}>time</div>
         </div>
       </div>
 
+      {/* Round score pill */}
+      {round.holes.length > 0 && (
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '4px 14px', borderRadius: 100, marginBottom: 8,
+          background: dark ? '#1e1e1e' : '#f5f5f5',
+          fontSize: 12, fontWeight: 600, color: cumScore <= 0 ? '#4caf50' : '#ff9800',
+        }}>
+          Round: {cumScore <= 0 ? cumScore : `+${cumScore}`}
+          <span style={{ color: t.sub2, fontWeight: 400 }}>
+            thru {round.holes.length}
+          </span>
+        </div>
+      )}
+
       {/* Hints */}
       {!gameState.completed && moves === 0 && !gameState.bombMode && (
-        <div style={{ ...s.hint, color: t.sub }}>Draw a path from start to goal</div>
+        <div style={{ ...st.hint, color: t.sub }}>Draw a path from start to goal</div>
       )}
       {gameState.bombMode && (
-        <div style={{ ...s.hint, color: '#ff9800', fontWeight: 600 }}>Tap a wall to destroy it</div>
+        <div style={{ ...st.hint, color: '#ff9800', fontWeight: 600 }}>Tap a wall to destroy it</div>
       )}
       {gameState.meltMode && (
-        <div style={{ ...s.hint, color: '#0288d1', fontWeight: 600 }}>Tap an ice tile to melt it</div>
+        <div style={{ ...st.hint, color: '#0288d1', fontWeight: 600 }}>Tap an ice tile to melt it</div>
       )}
       {gameState.paveMode && (
-        <div style={{ ...s.hint, color: '#e65100', fontWeight: 600 }}>Tap a sand tile to pave it</div>
+        <div style={{ ...st.hint, color: '#e65100', fontWeight: 600 }}>Tap a sand tile to pave it</div>
       )}
       {trapFlash && (
-        <div style={{ ...s.hint, color: '#c62828', fontWeight: 600 }}>Trap! Back to start (+2)</div>
+        <div style={{ ...st.hint, color: '#c62828', fontWeight: 600 }}>Trap! Back to start (+2)</div>
       )}
-      {gameState.completed && (
-        <div style={{ ...s.hint, color: t.sub }}>
+      {gameState.completed && !showHoleSummary && (
+        <div style={{ ...st.hint, color: t.sub }}>
           Completed &middot; <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setShowScore(true)}>view score</span>
         </div>
       )}
 
-      {/* Checkpoint status */}
       {cpTotal > 0 && !gameState.completed && (
-        <div style={{ ...s.hint, color: t.sub2, fontSize: 12, marginBottom: 8 }}>
+        <div style={{ ...st.hint, color: t.sub2, fontSize: 12, marginBottom: 8 }}>
           Checkpoints: {cpDone}/{cpTotal}
           {cpDone < cpTotal && ' — visit all before reaching goal'}
         </div>
       )}
 
       {/* Grid */}
-      <div style={{ ...s.gridWrap, boxShadow: t.gridShadow, position: 'relative' }}>
+      <div style={{ ...st.gridWrap, boxShadow: t.gridShadow, position: 'relative' }}>
         <Grid
           puzzle={puzzle}
           gameState={gameState}
@@ -563,42 +643,45 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
               </svg>
             </div>
             <div style={{ fontSize: 13, fontWeight: 600, color: dark ? '#aaa' : '#666', marginTop: 14, letterSpacing: 2, textTransform: 'uppercase' }}>
-              Tap to play
-            </div>
-          </div>
-        )}
-        {gameState.completed && (
-          <div
-            onClick={() => setShowScore(true)}
-            style={{
-              position: 'absolute', inset: 0, borderRadius: 12,
-              background: dark ? 'rgba(18,18,18,0.85)' : 'rgba(255,255,255,0.88)',
-              backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
-              display: 'flex', flexDirection: 'column',
-              justifyContent: 'center', alignItems: 'center',
-              cursor: 'pointer', zIndex: 30,
-            }}
-          >
-            <div style={{
-              background: dark ? '#1e1e1e' : '#fff',
-              borderRadius: 20, padding: '28px 40px',
-              boxShadow: '0 4px 24px rgba(0,0,0,0.1)',
-              textAlign: 'center',
-            }}>
-              <div style={{ fontSize: 48, fontWeight: 200, color: diff <= 0 ? '#4caf50' : '#ff9800', lineHeight: 1 }}>
-                {diff <= 0 ? diff : `+${diff}`}
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: dark ? '#e0e0e0' : '#1a1a2e', textTransform: 'uppercase', letterSpacing: 3, marginTop: 6 }}>
-                {getScoreLabel(diff)}
-              </div>
-              <div style={{ fontSize: 12, color: '#9e9e9e', marginTop: 12 }}>Tap to view score</div>
+              Hole {holeNumber}
             </div>
           </div>
         )}
       </div>
 
+      {/* Round complete overlay */}
+      {roundComplete && !showRounds && (
+        <div style={{ textAlign: 'center', marginTop: 20 }}>
+          <div style={{ fontSize: 14, color: t.sub2, marginBottom: 12 }}>Round complete!</div>
+          <button
+            onClick={() => setShowRounds(true)}
+            style={{
+              background: '#1a1a2e', color: '#fff', border: 'none',
+              padding: '12px 32px', borderRadius: 100, fontSize: 14,
+              fontWeight: 600, cursor: 'pointer', marginRight: 8,
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            View Scorecard
+          </button>
+          {round.ended && round.holes.length < HOLES_PER_ROUND && (
+            <button
+              onClick={handleStartNewRound}
+              style={{
+                background: 'none', color: t.sub2, border: `1.5px solid ${t.divider}`,
+                padding: '12px 24px', borderRadius: 100, fontSize: 13,
+                fontWeight: 600, cursor: 'pointer',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              New Round
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Legend */}
-      <div style={s.legend}>
+      <div style={st.legend}>
         <span style={{ color: t.sub2, fontSize: 11, lineHeight: 1.6, display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', gap: 2 }}>
           <b style={{ color: t.text }}>?</b> Trivia
           <span style={{ color: t.sub, margin: '0 3px' }}>&middot;</span>
@@ -617,7 +700,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
       </div>
 
       {!isSignedIn && (
-        <div style={{ ...s.loginHint, color: t.sub2 }}>
+        <div style={{ ...st.loginHint, color: t.sub2 }}>
           <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setShowLogin(true)}>
             Sign in
           </span>
@@ -625,6 +708,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         </div>
       )}
 
+      {/* Modals */}
       {triviaTarget && (
         <TriviaModal
           question={triviaTarget.question}
@@ -634,7 +718,6 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
             (inventory['trivia_skip'] || 0) > 0
           }
           onUseSkip={() => {
-            // Consume a trivia_skip powerup
             const owned = inventory['trivia_skip'] || 0;
             if (owned > 0) {
               const newInv = { ...inventory, trivia_skip: owned - 1 };
@@ -650,8 +733,21 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
           }}
         />
       )}
+
+      {showHoleSummary && (
+        <HoleSummary
+          round={round}
+          holeScore={lastHoleScore}
+          holeMoves={lastHoleMoves}
+          holePar={lastHolePar}
+          dark={dark}
+          onNextHole={handleNextHole}
+          onEndRound={handleEndRound}
+        />
+      )}
+
       <ScoreModal visible={showScore} gameState={gameState} puzzle={puzzle} onClose={() => setShowScore(false)} isSignedIn={isSignedIn} />
-      <StatsModal visible={showStats} onClose={() => setShowStats(false)} onViewHole={handleViewHole} isSignedIn={isSignedIn} />
+      <StatsModal visible={showStats} onClose={() => setShowStats(false)} onViewHole={() => {}} isSignedIn={isSignedIn} />
       <ArcadeModal
         visible={showArcade}
         onClose={() => setShowArcade(false)}
@@ -665,11 +761,12 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         dark={dark}
       />
       <LoginModal visible={showLogin} onClose={() => setShowLogin(false)} />
+      <RoundScorecard visible={showRounds} onClose={() => setShowRounds(false)} currentRound={round} dark={dark} />
     </div>
   );
 }
 
-const s: Record<string, React.CSSProperties> = {
+const st: Record<string, React.CSSProperties> = {
   container: {
     minHeight: '100dvh', display: 'flex', flexDirection: 'column',
     alignItems: 'center', fontFamily: '-apple-system, system-ui, sans-serif',

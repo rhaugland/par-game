@@ -3,17 +3,20 @@ import { createRng, todaySeed } from './seed';
 import { solve, solvePath, solveWithOpenCells, solveWithFeatures } from './solver';
 import { pickTriviaQuestions } from './trivia';
 
-const GRID_SIZE = 15;
+const DEFAULT_GRID_SIZE = 15;
 
-export function generatePuzzle(seed?: string): Puzzle {
+export function generatePuzzle(seed?: string, gridSize?: number): Puzzle {
   const s = seed || todaySeed();
   const rng = createRng(s);
+  const size = gridSize || DEFAULT_GRID_SIZE;
+  // Smaller grids need lower par threshold
+  const minPar = size <= 11 ? 10 : size <= 13 ? 14 : 20;
 
   let best: Puzzle | null = null;
   let bestScore = -Infinity;
 
   for (let attempt = 0; attempt < 50; attempt++) {
-    const puzzle = buildMaze(rng);
+    const puzzle = buildMaze(rng, false, size, minPar);
     if (!puzzle) continue;
     const score = puzzle.par * 2 + countDeadEnds(puzzle);
     if (score > bestScore) {
@@ -27,13 +30,13 @@ export function generatePuzzle(seed?: string): Puzzle {
     return placeSpecialTiles(withTrivia, rng);
   }
 
-  const fallback = placeTriviaWalls(buildMaze(rng, true)!, rng);
+  const fallback = placeTriviaWalls(buildMaze(rng, true, size, 0)!, rng);
   return placeSpecialTiles(fallback, rng);
 }
 
-function buildMaze(rng: () => number, force = false): Puzzle | null {
-  const rows = GRID_SIZE;
-  const cols = GRID_SIZE;
+function buildMaze(rng: () => number, force = false, gridSize = DEFAULT_GRID_SIZE, minPar = 20): Puzzle | null {
+  const rows = gridSize;
+  const cols = gridSize;
   const logicalRows = Math.floor((rows - 1) / 2);
   const logicalCols = Math.floor((cols - 1) / 2);
 
@@ -96,7 +99,7 @@ function buildMaze(rng: () => number, force = false): Puzzle | null {
 
   const par = solve(grid, start, end, rows, cols);
   if (par === null) return null;
-  if (!force && par < 20) return null;
+  if (!force && par < minPar) return null;
 
   return { grid, rows, cols, start, end, par, triviaQuestions: new Map(), checkpoints: [] };
 }

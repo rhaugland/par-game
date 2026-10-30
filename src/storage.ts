@@ -1,9 +1,11 @@
 import { DailyRecord } from './engine/types';
+import { DailyRound } from './engine/round';
 import { fetchRecords, saveGameRecord, fetchProfile, fetchStats as apiFetchStats } from './lib/api';
 
 const RECORDS_KEY = 'par_records';
 const TICKETS_KEY = 'par_tickets';
 const INVENTORY_KEY = 'par_inventory';
+const ROUNDS_KEY = 'par_rounds';
 
 // --- Local storage (guest mode) ---
 
@@ -79,6 +81,29 @@ export function getLocalStats() {
     pars: scores.filter(s => s === 0).length,
     lifetimeScore: scores.reduce((a, b) => a + b, 0),
   };
+}
+
+// --- Round storage ---
+
+function getAllRounds(): Record<string, DailyRound> {
+  const data = localStorage.getItem(ROUNDS_KEY);
+  return data ? JSON.parse(data) : {};
+}
+
+export function getRound(date: string): DailyRound | null {
+  return getAllRounds()[date] || null;
+}
+
+export function saveRound(round: DailyRound): void {
+  const rounds = getAllRounds();
+  rounds[round.date] = round;
+  localStorage.setItem(ROUNDS_KEY, JSON.stringify(rounds));
+}
+
+export function getRoundHistory(): DailyRound[] {
+  const rounds = getAllRounds();
+  return Object.values(rounds)
+    .sort((a, b) => b.date.localeCompare(a.date));
 }
 
 // Ticket earning rules (mirrored from API)
