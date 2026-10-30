@@ -1,16 +1,22 @@
 import { DailyRound, HOLES_PER_ROUND, totalScore, totalPar, isRoundComplete } from './engine/round';
 import { getRoundHistory } from './storage';
 import { useState, useEffect } from 'react';
-import { dayNumber } from './engine/seed';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
   currentRound: DailyRound | null;
   dark: boolean;
+  onPlayHole?: (holeNumber: number) => void;
 }
 
-function ScorecardRow({ round, dark }: { round: DailyRound; dark: boolean }) {
+function formatDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function ScorecardRow({ round, dark, onPlayHole }: { round: DailyRound; dark: boolean; onPlayHole?: (h: number) => void }) {
   const text = dark ? '#e0e0e0' : '#1a1a2e';
   const sub = dark ? '#666' : '#9e9e9e';
   const score = totalScore(round);
@@ -26,7 +32,7 @@ function ScorecardRow({ round, dark }: { round: DailyRound; dark: boolean }) {
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: text }}>{round.date}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: text }}>{formatDate(round.date)}</div>
           <div style={{ fontSize: 10, color: sub }}>
             {round.holes.length} hole{round.holes.length !== 1 ? 's' : ''}
             {!complete && ' (in progress)'}
@@ -41,23 +47,37 @@ function ScorecardRow({ round, dark }: { round: DailyRound; dark: boolean }) {
           </div>
         </div>
       </div>
-      {/* Mini hole scores */}
+      {/* Mini hole scores with hole numbers */}
       <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
         {Array.from({ length: HOLES_PER_ROUND }, (_, i) => {
           const hole = round.holes[i];
           const played = !!hole;
           const s = hole?.score ?? 0;
+          const isNextHole = !played && i + 1 === round.currentHole && !round.ended;
+          const canClick = onPlayHole && (played || isNextHole);
           return (
-            <div key={i} style={{
-              width: 24, height: 24, borderRadius: 5,
-              background: played
-                ? s <= -2 ? '#1b5e20' : s === -1 ? '#4caf50' : s === 0 ? '#ff9800' : '#ef5350'
-                : (dark ? '#2a2a2a' : '#e8e8e8'),
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 9, fontWeight: 700,
-              color: played ? '#fff' : (dark ? '#444' : '#ccc'),
-            }}>
-              {played ? (s <= 0 ? s : `+${s}`) : ''}
+            <div
+              key={i}
+              onClick={canClick ? () => onPlayHole(i + 1) : undefined}
+              style={{
+                width: 28, height: 28, borderRadius: 6,
+                background: played
+                  ? s <= -2 ? '#1b5e20' : s === -1 ? '#4caf50' : s === 0 ? '#ff9800' : '#ef5350'
+                  : isNextHole
+                    ? (dark ? '#2a3a2a' : '#e8f5e9')
+                    : (dark ? '#2a2a2a' : '#e8e8e8'),
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                cursor: canClick ? 'pointer' : 'default',
+                border: isNextHole ? '1.5px solid #4caf50' : 'none',
+                transition: 'transform 0.1s',
+              }}>
+              <div style={{
+                fontSize: played ? 10 : 9, fontWeight: 700,
+                color: played ? '#fff' : (dark ? '#666' : '#999'),
+                lineHeight: 1,
+              }}>
+                {played ? (s <= 0 ? s : `+${s}`) : (i + 1)}
+              </div>
             </div>
           );
         })}
@@ -66,7 +86,7 @@ function ScorecardRow({ round, dark }: { round: DailyRound; dark: boolean }) {
   );
 }
 
-export default function RoundScorecard({ visible, onClose, currentRound, dark }: Props) {
+export default function RoundScorecard({ visible, onClose, currentRound, dark, onPlayHole }: Props) {
   const [history, setHistory] = useState<DailyRound[]>([]);
 
   useEffect(() => {
@@ -104,7 +124,9 @@ export default function RoundScorecard({ visible, onClose, currentRound, dark }:
 
         <div style={{ textAlign: 'center', marginBottom: 16 }}>
           <div style={{ fontSize: 20, fontWeight: 200, color: text, letterSpacing: 6 }}>Rounds</div>
-          <div style={{ fontSize: 11, color: sub, marginTop: 4 }}>Day #{dayNumber()}</div>
+          <div style={{ fontSize: 11, color: sub, marginTop: 4 }}>
+            {rounds.length > 0 ? formatDate(rounds[0].date) : ''}
+          </div>
         </div>
 
         {rounds.length === 0 ? (
@@ -114,7 +136,7 @@ export default function RoundScorecard({ visible, onClose, currentRound, dark }:
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {rounds.map(r => (
-              <ScorecardRow key={r.date} round={r} dark={dark} />
+              <ScorecardRow key={r.date} round={r} dark={dark} onPlayHole={onPlayHole} />
             ))}
           </div>
         )}
