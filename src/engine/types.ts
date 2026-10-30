@@ -35,7 +35,7 @@ export interface Puzzle {
   checkpoints: [number, number][];
 }
 
-export type PowerupType = 'backspace' | 'trivia_retry' | 'bomb' | 'puzzle_retry' | 'par_path' | 'melt_ice' | 'pave_sand' | 'skip_checkpoint' | 'trivia_skip';
+export type PowerupType = 'backspace' | 'trivia_retry' | 'bomb' | 'puzzle_retry' | 'par_path' | 'melt_ice' | 'pave_sand' | 'skip_checkpoint' | 'trivia_skip' | 'mulligan' | 'stroke_eraser' | 'time_freeze' | 'scout';
 
 export const POWERUP_COSTS: Record<PowerupType, number> = {
   backspace: 1,
@@ -47,6 +47,10 @@ export const POWERUP_COSTS: Record<PowerupType, number> = {
   skip_checkpoint: 4,
   par_path: 8,
   trivia_skip: 2,
+  mulligan: 6,
+  stroke_eraser: 4,
+  time_freeze: 3,
+  scout: 5,
 };
 
 export const POWERUP_LIMITS: Record<PowerupType, number> = {
@@ -59,6 +63,10 @@ export const POWERUP_LIMITS: Record<PowerupType, number> = {
   skip_checkpoint: 1,
   par_path: 1,
   trivia_skip: 3,
+  mulligan: 3,
+  stroke_eraser: 2,
+  time_freeze: 2,
+  scout: 1,
 };
 
 export interface GameState {
