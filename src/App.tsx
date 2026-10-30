@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { generatePuzzle } from './engine/generator';
-import { createGameState, addToPath, getMoves, getScoreLabel } from './engine/game';
+import { createGameState, addToPath, getMoves } from './engine/game';
 import { solvePathWithFeatures } from './engine/solver';
-import { todaySeed, dayNumber } from './engine/seed';
+import { todaySeed } from './engine/seed';
 import { Puzzle, GameState, TriviaQuestion, PowerupType, POWERUP_COSTS, POWERUP_LIMITS } from './engine/types';
 import { DailyRound, HoleResult, HOLES_PER_ROUND, gridSizeForHole, holeSeed, totalScore, isRoundComplete } from './engine/round';
 import {
