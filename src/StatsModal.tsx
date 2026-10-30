@@ -1,193 +1,206 @@
 import { useEffect, useState } from 'react';
-import { getRecords } from './storage';
-import { dayNumber, seedForDay } from './engine/seed';
-import { DailyRecord } from './engine/types';
-
-const HOLES_PER_PAGE = 50;
-const TOTAL_HOLES = 365;
+import { getRoundHistory } from './storage';
+import { DailyRound, HOLES_PER_ROUND, totalScore, isRoundComplete } from './engine/round';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
-  onViewHole: (day: number) => void;
-  isSignedIn: boolean;
+  currentRound: DailyRound | null;
+  dark: boolean;
 }
 
-export default function StatsModal({ visible, onClose, onViewHole, isSignedIn: _isSignedIn }: Props) {
-  const [records, setRecords] = useState<Record<string, DailyRecord>>({});
-  const [page, setPage] = useState(0);
+function formatDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
-  const currentDay = dayNumber();
-  const totalPages = Math.ceil(TOTAL_HOLES / HOLES_PER_PAGE);
+export default function StatsModal({ visible, onClose, currentRound, dark }: Props) {
+  const [rounds, setRounds] = useState<DailyRound[]>([]);
 
   useEffect(() => {
     if (visible) {
-      setRecords(getRecords());
-      setPage(0);
+      const history = getRoundHistory();
+      const all = currentRound
+        ? [currentRound, ...history.filter(r => r.date !== currentRound.date)]
+        : history;
+      setRounds(all);
     }
-  }, [visible]);
+  }, [visible, currentRound]);
 
   if (!visible) return null;
 
-  const startHole = page * HOLES_PER_PAGE + 1;
-  const endHole = Math.min(startHole + HOLES_PER_PAGE - 1, TOTAL_HOLES);
+  const bg = dark ? '#1a1a1a' : '#fff';
+  const text = dark ? '#e0e0e0' : '#1a1a2e';
+  const sub = dark ? '#666' : '#9e9e9e';
+  const border = dark ? '#2a2a2a' : '#f0f0f0';
+  const cardBg = dark ? '#1e1e1e' : '#f8f8fa';
 
-  const holes: { day: number; seed: string; record: DailyRecord | null; future: boolean }[] = [];
-  for (let d = startHole; d <= endHole; d++) {
-    const seed = seedForDay(d);
-    holes.push({
-      day: d,
-      seed,
-      record: records[seed] || null,
-      future: d > currentDay,
-    });
+  // Aggregate stats across all rounds
+  const completedRounds = rounds.filter(r => isRoundComplete(r));
+  const allHoles = rounds.flatMap(r => r.holes);
+  const totalHolesPlayed = allHoles.length;
+  const eagles = allHoles.filter(h => h.score <= -2).length;
+  const birdies = allHoles.filter(h => h.score === -1).length;
+  const pars = allHoles.filter(h => h.score === 0).length;
+  const bogeys = allHoles.filter(h => h.score === 1).length;
+  const doubles = allHoles.filter(h => h.score >= 2).length;
+  const lifetimeScore = allHoles.reduce((s, h) => s + h.score, 0);
+  const roundScores = completedRounds.map(r => totalScore(r));
+  const bestRound = roundScores.length > 0 ? Math.min(...roundScores) : 0;
+  const avgRound = roundScores.length > 0
+    ? Math.round((roundScores.reduce((a, b) => a + b, 0) / roundScores.length) * 10) / 10
+    : 0;
+
+  // Streak
+  let streak = 0;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const roundDates = new Set(rounds.map(r => r.date));
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (roundDates.has(key)) {
+      streak++;
+    } else if (i > 0) {
+      break;
+    }
   }
 
   return (
-    <div style={styles.overlay} onClick={onClose}>
-      <div style={styles.card} onClick={e => e.stopPropagation()}>
-        <button style={styles.x} onClick={(e) => { e.stopPropagation(); onClose(); }}>&times;</button>
-        <div style={styles.title}>Holes</div>
-        <div style={styles.subtitle}>
-          {startHole}&ndash;{endHole} of {TOTAL_HOLES}
+    <div style={{
+      position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)',
+      display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100,
+    }} onClick={onClose}>
+      <div style={{
+        background: bg, borderRadius: 24, padding: '28px 20px',
+        width: '92%', maxWidth: 380, textAlign: 'center', position: 'relative',
+        maxHeight: '85dvh', overflowY: 'auto',
+      }} onClick={e => e.stopPropagation()}>
+        <button style={{
+          position: 'absolute', top: 8, right: 8,
+          background: 'none', border: 'none', fontSize: 28,
+          color: dark ? '#666' : '#bdbdbd',
+          cursor: 'pointer', zIndex: 10, width: 44, height: 44,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={onClose}>&times;</button>
+
+        <div style={{ fontSize: 18, fontWeight: 200, color: text, letterSpacing: 6, marginBottom: 4 }}>Stats</div>
+        <div style={{ fontSize: 11, color: sub, marginBottom: 20 }}>
+          {completedRounds.length} round{completedRounds.length !== 1 ? 's' : ''} completed
         </div>
 
-        <div style={styles.grid}>
-          {holes.map(({ day, record, future }) => {
-            const played = record?.completed;
-            const score = record?.score ?? 0;
+        {/* Top stats row */}
+        <div style={{
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
+          padding: '14px 0', borderTop: `1px solid ${border}`, borderBottom: `1px solid ${border}`,
+          marginBottom: 16,
+        }}>
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontSize: 24, fontWeight: 600, color: lifetimeScore <= 0 ? '#4caf50' : '#ff9800' }}>
+              {lifetimeScore <= 0 ? lifetimeScore : `+${lifetimeScore}`}
+            </div>
+            <div style={{ fontSize: 8, color: sub, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 2 }}>Lifetime</div>
+          </div>
+          <div style={{ width: 1, height: 28, background: border }} />
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontSize: 24, fontWeight: 600, color: bestRound <= 0 ? '#4caf50' : '#ff9800' }}>
+              {bestRound <= 0 ? bestRound : `+${bestRound}`}
+            </div>
+            <div style={{ fontSize: 8, color: sub, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 2 }}>Best Round</div>
+          </div>
+          <div style={{ width: 1, height: 28, background: border }} />
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontSize: 24, fontWeight: 600, color: text }}>{streak}</div>
+            <div style={{ fontSize: 8, color: sub, textTransform: 'uppercase', letterSpacing: 1.5, marginTop: 2 }}>Streak</div>
+          </div>
+        </div>
 
-            let bg = '#f5f5f7';
-            let color = '#ccc';
-            let label = '';
-
-            if (future) {
-              bg = '#fafafa';
-              color = '#e0e0e0';
-            } else if (played) {
-              if (score < 0) {
-                bg = '#e8f5e9';
-                color = '#2e7d32';
-                label = `${score}`;
-              } else if (score === 0) {
-                bg = '#e8f5e9';
-                color = '#4caf50';
-                label = '0';
-              } else {
-                bg = '#ffebee';
-                color = '#c62828';
-                label = `+${score}`;
-              }
-            }
-
-            return (
-              <div
-                key={day}
-                onClick={played ? () => onViewHole(day) : undefined}
-                style={{
-                  width: 52, height: 52, borderRadius: 10,
-                  backgroundColor: bg,
-                  display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', justifyContent: 'center',
-                  cursor: played ? 'pointer' : 'default',
-                  transition: 'transform 0.1s',
-                  border: day === currentDay ? '2px solid #1a1a2e' : '2px solid transparent',
-                }}
-              >
-                <div style={{
-                  fontSize: 9, fontWeight: 600, color: future ? '#e0e0e0' : '#9e9e9e',
-                  letterSpacing: 0.5,
-                }}>
-                  #{day}
-                </div>
-                {played ? (
-                  <div style={{
-                    fontSize: 15, fontWeight: 700, color,
-                    marginTop: 1,
-                  }}>
-                    {label}
-                  </div>
-                ) : (
-                  <div style={{
-                    fontSize: 11, color: future ? '#e0e0e0' : '#ccc',
-                    marginTop: 1,
-                  }}>
-                    {future ? '' : '--'}
-                  </div>
-                )}
+        {/* Hole breakdown */}
+        <div style={{
+          background: cardBg, borderRadius: 14, padding: '14px 16px',
+          border: `1px solid ${border}`, marginBottom: 12,
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: sub, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 10 }}>
+            {totalHolesPlayed} Holes Played
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-around' }}>
+            {[
+              { label: 'Eagle+', count: eagles, color: '#1b5e20' },
+              { label: 'Birdie', count: birdies, color: '#4caf50' },
+              { label: 'Par', count: pars, color: '#ff9800' },
+              { label: 'Bogey', count: bogeys, color: '#ef5350' },
+              { label: 'Dbl+', count: doubles, color: '#c62828' },
+            ].map(({ label, count, color }) => (
+              <div key={label} style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 600, color }}>{count}</div>
+                <div style={{ fontSize: 8, color: sub, textTransform: 'uppercase', letterSpacing: 1, marginTop: 2 }}>{label}</div>
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
 
-        <div style={styles.pagination}>
-          <button
-            style={{ ...styles.pageBtn, opacity: page > 0 ? 1 : 0.3 }}
-            onClick={() => page > 0 && setPage(page - 1)}
-            disabled={page === 0}
-          >
-            &larr;
-          </button>
-          <span style={styles.pageLabel}>
-            Page {page + 1} of {totalPages}
-          </span>
-          <button
-            style={{ ...styles.pageBtn, opacity: page < totalPages - 1 ? 1 : 0.3 }}
-            onClick={() => page < totalPages - 1 && setPage(page + 1)}
-            disabled={page === totalPages - 1}
-          >
-            &rarr;
-          </button>
-        </div>
+        {/* Avg round */}
+        {completedRounds.length > 0 && (
+          <div style={{
+            background: cardBg, borderRadius: 14, padding: '12px 16px',
+            border: `1px solid ${border}`, marginBottom: 16,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          }}>
+            <span style={{ fontSize: 11, color: sub, fontWeight: 500 }}>Avg Round Score</span>
+            <span style={{ fontSize: 18, fontWeight: 600, color: avgRound <= 0 ? '#4caf50' : '#ff9800' }}>
+              {avgRound <= 0 ? avgRound : `+${avgRound}`}
+            </span>
+          </div>
+        )}
 
-        <button style={styles.done} onClick={onClose}>Done</button>
+        {/* Recent rounds */}
+        {rounds.length > 0 && (
+          <>
+            <div style={{ fontSize: 10, fontWeight: 600, color: sub, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 8 }}>
+              Recent Rounds
+            </div>
+            {rounds.slice(0, 5).map(r => {
+              const sc = totalScore(r);
+              const complete = isRoundComplete(r);
+              return (
+                <div key={r.date} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '8px 12px', borderRadius: 10,
+                  background: cardBg, border: `1px solid ${border}`,
+                  marginBottom: 4,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: text }}>{formatDate(r.date)}</span>
+                    <span style={{ fontSize: 10, color: sub }}>
+                      {r.holes.length}/{HOLES_PER_ROUND}
+                      {!complete && ' ip'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      {r.holes.map((h, i) => (
+                        <div key={i} style={{
+                          width: 10, height: 10, borderRadius: 2,
+                          background: h.score <= -2 ? '#1b5e20' : h.score === -1 ? '#4caf50' : h.score === 0 ? '#ff9800' : '#ef5350',
+                        }} />
+                      ))}
+                    </div>
+                    <span style={{
+                      fontSize: 14, fontWeight: 600,
+                      color: sc <= 0 ? '#4caf50' : '#ff9800',
+                      minWidth: 30, textAlign: 'right',
+                    }}>
+                      {sc <= 0 ? sc : `+${sc}`}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  overlay: {
-    position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)',
-    display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 100,
-  },
-  card: {
-    background: '#fff', borderRadius: 24, padding: '36px 20px 28px',
-    width: '92%', maxWidth: 400, textAlign: 'center', position: 'relative',
-    maxHeight: '85dvh', overflowY: 'auto',
-  },
-  x: {
-    position: 'absolute', top: 8, right: 8,
-    background: 'none', border: 'none', fontSize: 28, color: '#bdbdbd',
-    cursor: 'pointer', zIndex: 10, width: 44, height: 44,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-  },
-  title: {
-    fontSize: 18, fontWeight: 600, color: '#1a1a2e',
-    textTransform: 'uppercase', letterSpacing: 4,
-  },
-  subtitle: {
-    fontSize: 12, color: '#9e9e9e', marginTop: 4, marginBottom: 20,
-    letterSpacing: 1,
-  },
-  grid: {
-    display: 'flex', flexWrap: 'wrap', gap: 6,
-    justifyContent: 'center',
-  },
-  pagination: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    gap: 16, marginTop: 20,
-  },
-  pageBtn: {
-    background: 'none', border: '1.5px solid #e0e0e0', borderRadius: 10,
-    width: 40, height: 40, fontSize: 18, color: '#616161',
-    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-  },
-  pageLabel: {
-    fontSize: 13, color: '#9e9e9e', letterSpacing: 1,
-  },
-  done: {
-    marginTop: 20, background: '#1a1a2e', color: '#fff', border: 'none',
-    padding: '12px 48px', borderRadius: 100, fontSize: 15, fontWeight: 500, cursor: 'pointer',
-  },
-};
