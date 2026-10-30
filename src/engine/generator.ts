@@ -1,6 +1,6 @@
 import { Cell, CellType, Puzzle, TriviaQuestion } from './types';
 import { createRng, todaySeed } from './seed';
-import { solve, solvePath, solveWithOpenCells, solveWithFeatures } from './solver';
+import { solve, solvePath, solveWithOpenCells, solveHopCount } from './solver';
 import { pickTriviaQuestions } from './trivia';
 
 const DEFAULT_GRID_SIZE = 15;
@@ -349,36 +349,37 @@ function placeSpecialTiles(puzzle: Puzzle, rng: () => number): Puzzle {
     trapPlaced++;
   }
 
-  // --- RECALCULATE PAR with features ---
-  const basePar = solveWithFeatures(grid, start, end, rows, cols, []);
-  let finalCheckpoints = checkpoints;
-  let newPar = solveWithFeatures(grid, start, end, rows, cols, checkpoints);
+  // --- RECALCULATE PAR ---
+  // Par = shortest hop count + buffer (so ice/smart routing lets you get under par)
+  const PAR_BUFFER = 2;
 
-  if (newPar === null || (basePar !== null && newPar > basePar * 1.6)) {
+  const baseHops = solveHopCount(grid, start, end, rows, cols, []);
+  let finalCheckpoints = checkpoints;
+  let hops = solveHopCount(grid, start, end, rows, cols, checkpoints);
+
+  if (hops === null || (baseHops !== null && hops > baseHops * 1.6)) {
     // Checkpoints inflate par too much or make puzzle unsolvable
-    // Try with just 1 checkpoint
     if (checkpoints.length > 1) {
       grid[checkpoints[1][0]][checkpoints[1][1]] = { type: CellType.Empty };
       const oneCp = [checkpoints[0]];
-      const onepar = solveWithFeatures(grid, start, end, rows, cols, oneCp);
-      if (onepar !== null && (basePar === null || onepar <= basePar * 1.6)) {
+      const oneHops = solveHopCount(grid, start, end, rows, cols, oneCp);
+      if (oneHops !== null && (baseHops === null || oneHops <= baseHops * 1.6)) {
         finalCheckpoints = oneCp;
-        newPar = onepar;
+        hops = oneHops;
       } else {
-        // Drop all checkpoints
         grid[checkpoints[0][0]][checkpoints[0][1]] = { type: CellType.Empty };
         finalCheckpoints = [];
-        newPar = basePar;
+        hops = baseHops;
       }
     } else {
-      // Drop single checkpoint
       if (checkpoints.length > 0) {
         grid[checkpoints[0][0]][checkpoints[0][1]] = { type: CellType.Empty };
       }
       finalCheckpoints = [];
-      newPar = basePar;
+      hops = baseHops;
     }
   }
 
-  return { ...puzzle, par: newPar ?? puzzle.par, checkpoints: finalCheckpoints };
+  const finalPar = (hops ?? puzzle.par) + PAR_BUFFER;
+  return { ...puzzle, par: finalPar, checkpoints: finalCheckpoints };
 }
