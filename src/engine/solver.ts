@@ -110,6 +110,62 @@ export function solveWithOpenCells(
   return null;
 }
 
+// BFS hop-count solver with checkpoint bitmask.
+// All passable cells cost 1 (ice, sand, trivia all count as 1 hop).
+// Traps are avoided. Used for intuitive par calculation.
+export function solveHopCount(
+  grid: Cell[][],
+  start: [number, number],
+  end: [number, number],
+  rows: number,
+  cols: number,
+  checkpoints: [number, number][]
+): number | null {
+  const numCp = checkpoints.length;
+  const fullMask = (1 << numCp) - 1;
+
+  const checkpointAt = new Map<string, number>();
+  checkpoints.forEach(([r, c], i) => checkpointAt.set(`${r},${c}`, i));
+
+  const maskCount = fullMask + 1;
+  const visited: boolean[][][] = Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () => new Array(maskCount).fill(false))
+  );
+
+  let startMask = 0;
+  const scp = checkpointAt.get(`${start[0]},${start[1]}`);
+  if (scp !== undefined) startMask |= (1 << scp);
+
+  visited[start[0]][start[1]][startMask] = true;
+  const queue: [number, number, number, number][] = [[start[0], start[1], startMask, 0]];
+
+  while (queue.length > 0) {
+    const [r, c, mask, hops] = queue.shift()!;
+    if (r === end[0] && c === end[1] && mask === fullMask) return hops;
+
+    for (const [dr, dc] of DIRS) {
+      const nr = r + dr, nc = c + dc;
+      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+
+      const ct = grid[nr][nc].type;
+      if (ct === CellType.Wall || ct === CellType.Trap) continue;
+
+      let newMask = mask;
+      const cpIdx = checkpointAt.get(`${nr},${nc}`);
+      if (cpIdx !== undefined) newMask |= (1 << cpIdx);
+
+      if (ct === CellType.End && newMask !== fullMask) continue;
+
+      if (!visited[nr][nc][newMask]) {
+        visited[nr][nc][newMask] = true;
+        queue.push([nr, nc, newMask, hops + 1]);
+      }
+    }
+  }
+
+  return null;
+}
+
 // Dijkstra solver with all features for par calculation.
 // Trivia walls are passable (cost 1) — par assumes perfect trivia answers.
 // Ice costs 0 moves (free slide). Sand costs 2 moves. Traps are avoided.
