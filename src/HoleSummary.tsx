@@ -1,8 +1,9 @@
 import { getScoreLabel } from './engine/game';
-import { DailyRound, HOLES_PER_ROUND, totalScore } from './engine/round';
+import { DailyRound, HOLES_PER_ROUND, totalScore, getHoleResult } from './engine/round';
 
 interface Props {
   round: DailyRound;
+  holeNumber: number;
   holeScore: number;
   holeMoves: number;
   holePar: number;
@@ -12,7 +13,7 @@ interface Props {
   onGoToHole: (holeNum: number) => void;
 }
 
-export default function HoleSummary({ round, holeScore, holeMoves, holePar, dark, onNextHole, onEndRound, onGoToHole }: Props) {
+export default function HoleSummary({ round, holeNumber, holeScore, holeMoves, holePar, dark, onNextHole, onEndRound, onGoToHole }: Props) {
   const bg = dark ? '#1a1a1a' : '#fff';
   const text = dark ? '#e0e0e0' : '#1a1a2e';
   const sub = dark ? '#666' : '#9e9e9e';
@@ -21,7 +22,7 @@ export default function HoleSummary({ round, holeScore, holeMoves, holePar, dark
   const scoreColor = good ? '#4caf50' : '#ff9800';
   const holesPlayed = round.holes.length;
   const cumScore = totalScore(round);
-  const isLastHole = round.currentHole > HOLES_PER_ROUND;
+  const allPlayed = holesPlayed >= HOLES_PER_ROUND;
 
   return (
     <div style={{
@@ -34,7 +35,7 @@ export default function HoleSummary({ round, holeScore, holeMoves, holePar, dark
       }}>
         {/* Hole result */}
         <div style={{ fontSize: 11, fontWeight: 700, color: sub, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>
-          Hole {holesPlayed} of {HOLES_PER_ROUND}
+          Hole {holeNumber} of {HOLES_PER_ROUND}
         </div>
         <div style={{ fontSize: 48, fontWeight: 200, color: scoreColor, lineHeight: 1 }}>
           {holeScore <= 0 ? holeScore : `+${holeScore}`}
@@ -74,10 +75,10 @@ export default function HoleSummary({ round, holeScore, holeMoves, holePar, dark
         {/* Mini scorecard — tappable */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 16, flexWrap: 'wrap' }}>
           {Array.from({ length: HOLES_PER_ROUND }, (_, i) => {
-            const hole = round.holes[i];
+            const hole = getHoleResult(round, i + 1);
             const played = !!hole;
             const s = hole?.score ?? 0;
-            const isNext = !played && i + 1 === round.currentHole;
+            const isNext = !played && i + 1 === holeNumber;
             return (
               <div
                 key={i}
@@ -104,7 +105,7 @@ export default function HoleSummary({ round, holeScore, holeMoves, holePar, dark
 
         {/* Buttons */}
         <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-          {!isLastHole && (
+          {!allPlayed && (
             <button
               onClick={onEndRound}
               style={{
@@ -118,7 +119,7 @@ export default function HoleSummary({ round, holeScore, holeMoves, holePar, dark
             </button>
           )}
           <button
-            onClick={isLastHole ? onEndRound : onNextHole}
+            onClick={allPlayed ? onEndRound : onNextHole}
             style={{
               flex: 1, padding: '14px 0', borderRadius: 12, border: 'none',
               fontSize: 14, fontWeight: 700, cursor: 'pointer',
@@ -126,7 +127,7 @@ export default function HoleSummary({ round, holeScore, holeMoves, holePar, dark
               WebkitTapHighlightColor: 'transparent',
             }}
           >
-            {isLastHole ? 'View Scorecard' : 'Next Hole'}
+            {allPlayed ? 'View Scorecard' : 'Next Hole'}
           </button>
         </div>
       </div>

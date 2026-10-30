@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { GameState, Puzzle, CellType } from './engine/types';
 import { getScoreLabel, getMoves } from './engine/game';
-import { DailyRound, HOLES_PER_ROUND, totalScore, totalPar, isRoundComplete } from './engine/round';
+import { DailyRound, HOLES_PER_ROUND, totalScore, totalPar, isRoundComplete, getHoleResult } from './engine/round';
 
 function MiniGrid({ puzzle, path }: { puzzle: Puzzle; path: [number, number][] }) {
   const size = Math.min(Math.floor(280 / puzzle.cols), Math.floor(200 / puzzle.rows), 20);
@@ -205,7 +205,7 @@ export default function ScoreModal({ visible, gameState, puzzle, round, holeNumb
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
                 {Array.from({ length: HOLES_PER_ROUND }, (_, i) => {
-                  const hole = round.holes[i];
+                  const hole = getHoleResult(round, i + 1);
                   const played = !!hole;
                   const s = hole?.score ?? 0;
                   return (
