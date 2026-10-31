@@ -61,3 +61,19 @@ export async function usePowerupApi(powerup: string, seed: string): Promise<{ in
 export async function fetchStats() {
   return authFetch('/api/stats');
 }
+
+export interface LeaderboardEntry {
+  rank: number;
+  displayName: string;
+  totalScore: number;
+  holesPlayed: number;
+  totalPar: number;
+  bestHole: number;
+  daysPlayed: number;
+}
+
+export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
+  const res = await fetch('/api/leaderboard');
+  if (!res.ok) return [];
+  return res.json();
+}
