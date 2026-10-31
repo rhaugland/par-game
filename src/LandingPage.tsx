@@ -6,7 +6,7 @@ interface Props {
 }
 
 // Completed demo — path on empty cells, special tiles visible off-path
-// 0=Empty 1=Wall 2=Start 3=End 4=Trivia 5=Ice 6=Sand 7=Trap 8=Checkpoint
+// 0=Empty 1=Wall 2=Start 3=End 4=Trivia 5=Ice 6=Sand 7=Trap
 const DEMO_COLS = 7;
 const DEMO_ROWS = 7;
 //        c0  c1  c2  c3  c4  c5  c6
@@ -16,7 +16,7 @@ const DEMO: number[][] = [
   [       4,  0,  0,  1,  0,  0,  7],  // r2: trivia, empty, path, wall, empty, empty, trap
   [       0,  1,  0,  0,  0,  1,  0],  // r3: empty, wall, path, path, empty, wall, empty
   [       6,  6,  1,  0,  0,  0,  0],  // r4: sand, sand, wall, path, empty, empty, empty
-  [       0,  0,  0,  0,  1,  8,  0],  // r5: empty, empty, empty, path, wall, checkpoint, empty
+  [       0,  0,  0,  0,  1,  0,  0],  // r5: empty, empty, empty, path, wall, empty, empty
   [       0,  1,  0,  0,  0,  0,  3],  // r6: empty, wall, empty, path→path→path→goal
 ];
 // Path: [0,0]→[0,1]→[0,2]→[1,2]→[2,2]→[3,2]→[3,3]→[4,3]→[5,3]→[6,3]→[6,4]→[6,5]→[6,6]
@@ -37,7 +37,6 @@ function DemoCell({ type, cellSize, isStart, isEnd, r, c }: {
   const isIce = type === CellType.Ice;
   const isSand = type === CellType.Sand;
   const isTrap = type === CellType.Trap;
-  const isCheckpoint = type === CellType.Checkpoint;
   const isSolid = isWall || isTrivia;
   const inPath = DEMO_PATH_SET.has(`${r},${c}`);
 
@@ -47,8 +46,6 @@ function DemoCell({ type, cellSize, isStart, isEnd, r, c }: {
   if (isIce) bg = '#b3e5fc';
   if (isSand) bg = '#ffe0b2';
   if (isTrap) bg = '#ffcdd2';
-  if (isCheckpoint) bg = '#e0e0e0';
-
   // Path fills cell green (matching Grid.tsx)
   if (inPath && !isWall && !isTrivia) {
     if (isEnd) bg = '#e53935';
@@ -90,15 +87,6 @@ function DemoCell({ type, cellSize, isStart, isEnd, r, c }: {
           fontSize: Math.max(cellSize * 0.4, 12), fontWeight: 800,
           color: '#c62828', lineHeight: 1,
         }}>!</span>
-      )}
-      {isCheckpoint && (
-        <div style={{
-          width: cellSize * 0.6, height: cellSize * 0.6,
-          borderRadius: '50%', backgroundColor: '#9e9e9e',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <span style={{ color: '#fff', fontSize: Math.max(cellSize * 0.3, 10), fontWeight: 800, lineHeight: 1 }}>1</span>
-        </div>
       )}
       {/* Start marker */}
       {isStart && inPath && (

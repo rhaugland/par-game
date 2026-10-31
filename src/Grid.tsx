@@ -31,11 +31,14 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
   const gridRef = useRef<HTMLDivElement>(null);
   const drawing = useRef(false);
   const lastCell = useRef('');
+  const rectCache = useRef<DOMRect | null>(null);
 
   const getCell = useCallback((x: number, y: number): [number, number] | null => {
     const el = gridRef.current;
     if (!el) return null;
-    const r = el.getBoundingClientRect();
+    // Cache bounding rect during a drag for smoother perf
+    if (!rectCache.current) rectCache.current = el.getBoundingClientRect();
+    const r = rectCache.current;
     if (x < r.left || x > r.right || y < r.top || y > r.bottom) return null;
     const col = Math.floor((x - r.left) / cellSize);
     const row = Math.floor((y - r.top) / cellSize);
@@ -46,6 +49,8 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
   const handlePointerDown = useCallback((e: PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    // Refresh rect cache on each drag start
+    rectCache.current = gridRef.current?.getBoundingClientRect() ?? null;
 
     const c = getCell(e.clientX, e.clientY);
     if (!c) return;
@@ -82,6 +87,7 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
     e.preventDefault();
     drawing.current = false;
     lastCell.current = '';
+    rectCache.current = null;
     onDrawEnd();
   }, [onDrawEnd]);
 
@@ -113,15 +119,12 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
           const isIce = cell.type === CellType.Ice;
           const isSand = cell.type === CellType.Sand;
           const isTrap = cell.type === CellType.Trap;
-          const isCheckpoint = cell.type === CellType.Checkpoint;
           const cellKey = `${r},${c}`;
           const isUnlocked = gameState.unlockedCells.has(cellKey);
           const isFailed = gameState.failedCells.has(cellKey);
           const inPath = pathSet.has(cellKey);
           const triviaQ = puzzle.triviaQuestions.get(cellKey);
           const trapTriggered = gameState.triggeredTraps.has(cellKey);
-          const cpVisited = isCheckpoint && cell.checkpointIndex !== undefined &&
-            gameState.checkpointsVisited.has(cell.checkpointIndex);
           const isHead = head && head[0] === r && head[1] === c;
 
           // Base background
@@ -134,7 +137,6 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
           if (isSand) bg = '#ffe0b2';
           if (isTrap && !trapTriggered) bg = '#ffcdd2';
           if (isTrap && trapTriggered) bg = '#f0f1f3';
-          if (isCheckpoint) bg = cpVisited ? '#c8e6c9' : '#e0e0e0';
 
           // Path fills the cell green
           if (inPath && !isWall && !(isTrivia && !isUnlocked)) {
@@ -211,24 +213,6 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
                 }}>!</span>
               )}
 
-              {/* Checkpoint marker */}
-              {isCheckpoint && cell.checkpointIndex !== undefined && (
-                <div style={{
-                  width: cellSize * 0.6, height: cellSize * 0.6,
-                  borderRadius: '50%',
-                  backgroundColor: cpVisited ? '#4caf50' : '#9e9e9e',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: cpVisited ? '0 0 6px rgba(76,175,80,0.5)' : 'none',
-                }}>
-                  <span style={{
-                    color: '#fff', fontSize: Math.max(cellSize * 0.3, 10),
-                    fontWeight: 800, lineHeight: 1,
-                  }}>
-                    {cpVisited ? '\u2713' : cell.checkpointIndex + 1}
-                  </span>
-                </div>
-              )}
-
               {/* Start dot — always visible */}
               {isStart && !inPath && (
                 <div style={{
@@ -238,18 +222,21 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
                 }} />
               )}
 
-              {/* End goal — when not yet reached */}
-              {isEnd && !inPath && (
-                <div style={{ padding: '4px 8px', borderRadius: 4, backgroundColor: '#ff5252' }}>
-                  <span style={{ color: '#fff', fontSize: 10, fontWeight: 800, letterSpacing: 1 }}>GOAL</span>
+              {/* End goal */}
+              {isEnd && (
+                <div style={{
+                  width: '100%', height: '100%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  backgroundColor: inPath ? 'transparent' : '#ff5252',
+                  borderRadius: inPath ? 0 : 4,
+                }}>
+                  <span style={{
+                    color: '#fff', fontSize: Math.max(cellSize * 0.28, 8),
+                    fontWeight: 800, letterSpacing: 0.5, lineHeight: 1,
+                  }}>
+                    GOAL
+                  </span>
                 </div>
-              )}
-
-              {/* End reached */}
-              {isEnd && inPath && (
-                <span style={{ color: '#fff', fontSize: Math.max(cellSize * 0.28, 8), fontWeight: 800, letterSpacing: 0.5 }}>
-                  GOAL
-                </span>
               )}
 
               {/* Head indicator — white dot on current cell */}

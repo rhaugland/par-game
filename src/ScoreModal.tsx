@@ -33,7 +33,6 @@ function MiniGrid({ puzzle, path }: { puzzle: Puzzle; path: [number, number][] }
             if (t === CellType.Ice) fill = '#b3e5fc';
             if (t === CellType.Sand) fill = '#ffe0b2';
             if (t === CellType.Trap) fill = '#ffcdd2';
-            if (t === CellType.Checkpoint) fill = '#e0e0e0';
             if (onPath && t === CellType.Empty) fill = '#66bb6a';
             if (isStart) fill = '#4caf50';
             if (isEnd) fill = '#e53935';
@@ -69,15 +68,6 @@ function MiniGrid({ puzzle, path }: { puzzle: Puzzle; path: [number, number][] }
                 {t === CellType.TriviaWall && (
                   <text x={cx} y={cy + size * 0.15} textAnchor="middle"
                     fontSize={size * 0.32} fontWeight={700} fill="#fff" opacity={0.9}>?</text>
-                )}
-                {t === CellType.Checkpoint && cell.checkpointIndex !== undefined && (
-                  <>
-                    <circle cx={cx} cy={cy} r={size * 0.3} fill="#9e9e9e" />
-                    <text x={cx} y={cy + size * 0.12} textAnchor="middle"
-                      fontSize={size * 0.28} fontWeight={800} fill="#fff">
-                      {cell.checkpointIndex + 1}
-                    </text>
-                  </>
                 )}
                 {isStart && onPath && (
                   <circle cx={cx} cy={cy} r={size * 0.25} fill="#2e7d32" stroke="#fff" strokeWidth={1} />

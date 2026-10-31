@@ -205,7 +205,7 @@ function placeTriviaWalls(puzzle: Puzzle, rng: () => number): Puzzle {
   return { ...puzzle, triviaQuestions };
 }
 
-// Place ice, sand, traps, and checkpoints after trivia walls
+// Place ice, sand, and traps after trivia walls
 function placeSpecialTiles(puzzle: Puzzle, rng: () => number): Puzzle {
   const { grid, rows, cols, start, end } = puzzle;
   const dirs: [number, number][] = [[-1, 0], [1, 0], [0, -1], [0, 1]];
@@ -223,51 +223,6 @@ function placeSpecialTiles(puzzle: Puzzle, rng: () => number): Puzzle {
   const pathSet = new Set(optPath?.map(([r, c]) => `${r},${c}`) || []);
   const offPath = emptyCells.filter(([r, c]) => !pathSet.has(`${r},${c}`));
 
-  // --- CHECKPOINTS (2, near optimal path but not on it — small detours, not dead ends) ---
-  const checkpoints: [number, number][] = [];
-
-  // Score off-path cells by distance to the optimal path — prefer cells 1-3 steps off
-  const offPathScored = offPath
-    .filter(([r, c]) => grid[r][c].type === CellType.Empty)
-    .map(([r, c]) => {
-      // Manhattan distance to nearest path cell
-      let minDist = Infinity;
-      for (const pk of pathSet) {
-        const [pr, pc] = pk.split(',').map(Number);
-        const d = Math.abs(r - pr) + Math.abs(c - pc);
-        if (d < minDist) minDist = d;
-      }
-      return { r, c, dist: minDist };
-    })
-    .filter(({ r, c, dist }) => {
-      if (dist > 4) return false; // too far — would create huge detour
-      const nearStart = Math.abs(r - start[0]) + Math.abs(c - start[1]) < 3;
-      const nearEnd = Math.abs(r - end[0]) + Math.abs(c - end[1]) < 3;
-      if (nearStart || nearEnd) return false;
-      // Must have at least 2 open neighbors (not a dead end)
-      let openN = 0;
-      for (const [dr, dc] of dirs) {
-        const nr = r + dr, nc = c + dc;
-        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].type !== CellType.Wall) openN++;
-      }
-      return openN >= 2;
-    })
-    .sort((a, b) => {
-      // Prefer 1-2 steps off path, with some randomness
-      const scoreA = Math.abs(a.dist - 2) + rng() * 2;
-      const scoreB = Math.abs(b.dist - 2) + rng() * 2;
-      return scoreA - scoreB;
-    });
-
-  for (const { r, c } of offPathScored) {
-    if (checkpoints.length >= 2) break;
-    const tooClose = checkpoints.some(([cr, cc]) =>
-      Math.abs(cr - r) + Math.abs(cc - c) < 5
-    );
-    if (tooClose) continue;
-    checkpoints.push([r, c]);
-    grid[r][c] = { type: CellType.Checkpoint, checkpointIndex: checkpoints.length - 1 };
-  }
   const shuffledOff = [...offPath].sort(() => rng() - 0.5);
 
   // --- ICE PATCHES (find corridors of 3+ empty cells in a line) ---
@@ -352,34 +307,7 @@ function placeSpecialTiles(puzzle: Puzzle, rng: () => number): Puzzle {
   // --- RECALCULATE PAR ---
   // Par = shortest hop count + buffer (so ice/smart routing lets you get under par)
   const PAR_BUFFER = 2;
-
-  const baseHops = solveHopCount(grid, start, end, rows, cols, []);
-  let finalCheckpoints = checkpoints;
-  let hops = solveHopCount(grid, start, end, rows, cols, checkpoints);
-
-  if (hops === null || (baseHops !== null && hops > baseHops * 1.6)) {
-    // Checkpoints inflate par too much or make puzzle unsolvable
-    if (checkpoints.length > 1) {
-      grid[checkpoints[1][0]][checkpoints[1][1]] = { type: CellType.Empty };
-      const oneCp = [checkpoints[0]];
-      const oneHops = solveHopCount(grid, start, end, rows, cols, oneCp);
-      if (oneHops !== null && (baseHops === null || oneHops <= baseHops * 1.6)) {
-        finalCheckpoints = oneCp;
-        hops = oneHops;
-      } else {
-        grid[checkpoints[0][0]][checkpoints[0][1]] = { type: CellType.Empty };
-        finalCheckpoints = [];
-        hops = baseHops;
-      }
-    } else {
-      if (checkpoints.length > 0) {
-        grid[checkpoints[0][0]][checkpoints[0][1]] = { type: CellType.Empty };
-      }
-      finalCheckpoints = [];
-      hops = baseHops;
-    }
-  }
-
+  const hops = solveHopCount(grid, start, end, rows, cols, []);
   const finalPar = (hops ?? puzzle.par) + PAR_BUFFER;
-  return { ...puzzle, par: finalPar, checkpoints: finalCheckpoints };
+  return { ...puzzle, par: finalPar, checkpoints: [] };
 }
