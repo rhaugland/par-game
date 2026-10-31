@@ -595,7 +595,13 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
             <div style={{
               position: 'relative',
               fontSize: 10, fontWeight: 700, letterSpacing: 3.5,
-              color: dark ? '#ccc' : '#555', textTransform: 'uppercase',
+              textTransform: 'uppercase',
+              background: dark
+                ? 'linear-gradient(90deg, #c4956a 0%, #8B6914 35%, #a67c52 65%, #c4956a 100%)'
+                : 'linear-gradient(90deg, #8B6914 0%, #6B4F12 35%, #8B6914 65%, #a67c52 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
             }}>
               candy cigar studios
             </div>
