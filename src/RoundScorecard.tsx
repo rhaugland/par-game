@@ -1,5 +1,6 @@
 import { DailyRound, HOLES_PER_ROUND, totalScore, totalPar, isRoundComplete, getHoleResult, nextUnplayedHole } from './engine/round';
 import { getRoundHistory } from './storage';
+import { fetchLeaderboard, LeaderboardEntry } from './lib/api';
 import { useState, useEffect } from 'react';
 
 interface Props {
@@ -86,20 +87,93 @@ function ScorecardRow({ round, dark, onPlayHole }: { round: DailyRound; dark: bo
   );
 }
 
+function LeaderboardRow({ entry, dark, index }: { entry: LeaderboardEntry; dark: boolean; index: number }) {
+  const text = dark ? '#e0e0e0' : '#1a1a2e';
+  const sub = dark ? '#666' : '#9e9e9e';
+  const scoreColor = entry.totalScore <= 0 ? '#4caf50' : '#ff9800';
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '10px 14px', borderRadius: 14,
+      background: dark ? '#1e1e1e' : '#f8f8fa',
+      border: `1px solid ${dark ? '#2a2a2a' : '#eee'}`,
+      marginBottom: 4,
+    }}>
+      {/* Rank */}
+      <div style={{
+        width: 28, height: 28, borderRadius: 8,
+        background: index === 0 ? '#ffd600' : index === 1 ? '#bdbdbd' : index === 2 ? '#bf8040' : (dark ? '#2a2a2a' : '#e8e8e8'),
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0,
+      }}>
+        <span style={{
+          fontSize: 12, fontWeight: 800,
+          color: index < 3 ? '#1a1a2e' : (dark ? '#666' : '#999'),
+        }}>
+          {entry.rank}
+        </span>
+      </div>
+
+      {/* Name + stats */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 13, fontWeight: 600, color: text,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {entry.displayName}
+        </div>
+        <div style={{ fontSize: 10, color: sub }}>
+          {entry.holesPlayed} holes &middot; {entry.daysPlayed} day{entry.daysPlayed !== 1 ? 's' : ''}
+        </div>
+      </div>
+
+      {/* Score */}
+      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+        <div style={{ fontSize: 17, fontWeight: 700, color: scoreColor }}>
+          {entry.totalScore <= 0 ? entry.totalScore : `+${entry.totalScore}`}
+        </div>
+        <div style={{ fontSize: 9, color: sub, letterSpacing: 0.5 }}>
+          vs par
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type Tab = 'rounds' | 'leaderboard';
+
 export default function RoundScorecard({ visible, onClose, currentRound, dark, onPlayHole }: Props) {
+  const [tab, setTab] = useState<Tab>('rounds');
   const [history, setHistory] = useState<DailyRound[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [lbLoading, setLbLoading] = useState(false);
 
   useEffect(() => {
-    if (visible) setHistory(getRoundHistory());
+    if (visible) {
+      setHistory(getRoundHistory());
+      setTab('rounds');
+    }
   }, [visible]);
+
+  useEffect(() => {
+    if (visible && tab === 'leaderboard' && leaderboard.length === 0) {
+      setLbLoading(true);
+      fetchLeaderboard().then(data => {
+        setLeaderboard(data);
+        setLbLoading(false);
+      }).catch(() => setLbLoading(false));
+    }
+  }, [visible, tab]);
 
   if (!visible) return null;
 
   const bg = dark ? '#1a1a1a' : '#fff';
   const text = dark ? '#e0e0e0' : '#1a1a2e';
   const sub = dark ? '#666' : '#9e9e9e';
+  const tabBg = dark ? '#242424' : '#f0f0f2';
+  const tabActive = dark ? '#333' : '#fff';
 
-  // Combine current round with history (deduplicate by date)
   const rounds = currentRound
     ? [currentRound, ...history.filter(r => r.date !== currentRound.date)]
     : history;
@@ -122,23 +196,68 @@ export default function RoundScorecard({ visible, onClose, currentRound, dark, o
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }} onClick={onClose}>&times;</button>
 
-        <div style={{ textAlign: 'center', marginBottom: 16 }}>
-          <div style={{ fontSize: 20, fontWeight: 200, color: text, letterSpacing: 6 }}>Rounds</div>
-          <div style={{ fontSize: 11, color: sub, marginTop: 4 }}>
-            {rounds.length > 0 ? formatDate(rounds[0].date) : ''}
-          </div>
+        {/* Tabs */}
+        <div style={{
+          display: 'flex', gap: 4, padding: 3, borderRadius: 12,
+          background: tabBg, marginBottom: 16,
+        }}>
+          {(['rounds', 'leaderboard'] as Tab[]).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              style={{
+                flex: 1, padding: '8px 0', borderRadius: 10, border: 'none',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                background: tab === t ? tabActive : 'transparent',
+                color: tab === t ? text : sub,
+                boxShadow: tab === t ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              {t === 'rounds' ? 'My Rounds' : 'Leaderboard'}
+            </button>
+          ))}
         </div>
 
-        {rounds.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '32px 0', color: sub, fontSize: 13 }}>
-            No rounds yet. Start playing!
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {rounds.map(r => (
-              <ScorecardRow key={r.date} round={r} dark={dark} onPlayHole={onPlayHole} />
-            ))}
-          </div>
+        {/* My Rounds tab */}
+        {tab === 'rounds' && (
+          <>
+            {rounds.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px 0', color: sub, fontSize: 13 }}>
+                No rounds yet. Start playing!
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {rounds.map(r => (
+                  <ScorecardRow key={r.date} round={r} dark={dark} onPlayHole={onPlayHole} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Leaderboard tab */}
+        {tab === 'leaderboard' && (
+          <>
+            {lbLoading ? (
+              <div style={{ textAlign: 'center', padding: '32px 0', color: sub, fontSize: 13 }}>
+                Loading...
+              </div>
+            ) : leaderboard.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px 0', color: sub, fontSize: 13 }}>
+                No entries yet. Complete a round to join!
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {leaderboard.map((entry, i) => (
+                  <LeaderboardRow key={entry.rank} entry={entry} dark={dark} index={i} />
+                ))}
+              </div>
+            )}
+            <div style={{ textAlign: 'center', marginTop: 12, fontSize: 10, color: sub }}>
+              Minimum 9 holes played to qualify
+            </div>
+          </>
         )}
       </div>
     </div>
