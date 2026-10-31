@@ -5,7 +5,7 @@ import { pickTriviaQuestions } from './trivia';
 
 const DEFAULT_GRID_SIZE = 15;
 
-export function generatePuzzle(seed?: string, gridSize?: number): Puzzle {
+export function generatePuzzle(seed?: string, gridSize?: number, daySeed?: string, holeNumber?: number): Puzzle {
   const s = seed || todaySeed();
   const rng = createRng(s);
   const size = gridSize || DEFAULT_GRID_SIZE;
@@ -25,12 +25,15 @@ export function generatePuzzle(seed?: string, gridSize?: number): Puzzle {
     }
   }
 
+  const ds = daySeed || todaySeed();
+  const hn = holeNumber || 1;
+
   if (best) {
-    const withTrivia = placeTriviaWalls(best, rng);
+    const withTrivia = placeTriviaWalls(best, rng, ds, hn);
     return placeSpecialTiles(withTrivia, rng);
   }
 
-  const fallback = placeTriviaWalls(buildMaze(rng, true, size, 0)!, rng);
+  const fallback = placeTriviaWalls(buildMaze(rng, true, size, 0)!, rng, ds, hn);
   return placeSpecialTiles(fallback, rng);
 }
 
@@ -122,7 +125,7 @@ function countDeadEnds(puzzle: Puzzle): number {
   return count;
 }
 
-function placeTriviaWalls(puzzle: Puzzle, rng: () => number): Puzzle {
+function placeTriviaWalls(puzzle: Puzzle, rng: () => number, daySeed: string, holeNumber: number): Puzzle {
   const { grid, rows, cols, start, end, par } = puzzle;
   const dirs: [number, number][] = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 
@@ -193,7 +196,7 @@ function placeTriviaWalls(puzzle: Puzzle, rng: () => number): Puzzle {
 
   if (selected.length === 0) return puzzle;
 
-  const questions = pickTriviaQuestions(rng, selected.length);
+  const questions = pickTriviaQuestions(daySeed, selected.length, holeNumber);
   const triviaQuestions = new Map<string, TriviaQuestion>();
 
   for (let i = 0; i < selected.length; i++) {

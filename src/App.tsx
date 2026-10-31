@@ -42,7 +42,7 @@ function initRound(date: string): DailyRound {
 function loadHolePuzzle(daySeed: string, holeNum: number): Puzzle {
   const seed = holeSeed(daySeed, holeNum);
   const size = gridSizeForHole(holeNum);
-  return generatePuzzle(seed, size);
+  return generatePuzzle(seed, size, daySeed, holeNum);
 }
 
 export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
