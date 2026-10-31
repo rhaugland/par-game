@@ -8,7 +8,7 @@ import { DailyRound, HoleResult, HOLES_PER_ROUND, gridSizeForHole, holeSeed, tot
 import {
   setLocalTickets, setLocalInventory,
   getLocalTickets, getLocalInventory, syncRecordsFromApi,
-  getRound, saveRound,
+  getRound, saveRound, getRoundHistory,
 } from './storage';
 import { setAuthTokenGetter, buyPowerup as apiBuyPowerup, usePowerupApi, fetchProfile } from './lib/api';
 import { useClerkAuth } from './useClerkAuth';
@@ -59,6 +59,7 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
   const [tickets, setTickets] = useState(0);
   const [inventory, setInventory] = useState<Record<string, number>>({});
   const [trapFlash, setTrapFlash] = useState(false);
+  const [warpFlash, setWarpFlash] = useState(false);
   const [showLanding, setShowLanding] = useState(() => !localStorage.getItem(LANDING_KEY));
   const [isFirstPlay] = useState(() => !localStorage.getItem(PLAYED_KEY));
 
@@ -233,7 +234,10 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
 
     const next = addToPath(gs, r, c, pz);
     if (next !== gs) {
-      if (next.trapPenalty > gs.trapPenalty) {
+      if (next.warpedTo) {
+        setWarpFlash(true);
+        setTimeout(() => setWarpFlash(false), 1500);
+      } else if (next.trapPenalty > gs.trapPenalty && !next.warpedTo) {
         setTrapFlash(true);
         setTimeout(() => setTrapFlash(false), 1500);
       }
@@ -274,9 +278,28 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         setLastHoleMoves(moves);
         setLastHolePar(pz.par);
 
-        // Earn tickets per hole
-        const earned = finalScore <= -2 ? 5 : finalScore === -1 ? 3 : finalScore === 0 ? 1 : 0;
-        if (earned > 0) {
+        // Earn tickets per hole (with lifetime performance multiplier)
+        const baseEarned = finalScore <= -2 ? 5 : finalScore === -1 ? 3 : finalScore === 0 ? 1 : 0;
+        if (baseEarned > 0) {
+          // Compute lifetime score vs lifetime par from all rounds
+          const history = getRoundHistory();
+          let lifetimeScore = 0;
+          let lifetimePar = 0;
+          for (const r of history) {
+            for (const h of r.holes) {
+              lifetimeScore += h.moves;
+              lifetimePar += h.par;
+            }
+          }
+          // Include current hole
+          lifetimeScore += moves;
+          lifetimePar += pz.par;
+
+          let multiplier = 1;
+          if (lifetimeScore < lifetimePar) multiplier = 2;       // under par lifetime = 2x
+          else if (lifetimeScore === lifetimePar) multiplier = 1.5; // at par lifetime = 1.5x
+
+          const earned = Math.round(baseEarned * multiplier);
           setTickets(t => t + earned);
           setLocalTickets(getLocalTickets() + earned);
         }
@@ -682,6 +705,9 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
       {trapFlash && (
         <div style={{ ...st.hint, color: '#c62828', fontWeight: 600 }}>Trap! Back to start (+2)</div>
       )}
+      {warpFlash && (
+        <div style={{ ...st.hint, color: '#7b1fa2', fontWeight: 600 }}>Warped! Teleported (+1)</div>
+      )}
       {gameState.completed && !showHoleSummary && (
         <div style={{ ...st.hint, color: t.sub }}>
           Completed &middot; <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setShowScore(true)}>view score</span>
@@ -761,6 +787,12 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
           <span> = 2x moves</span>
           <span style={{ color: t.sub, margin: '0 3px' }}>&middot;</span>
           <span style={{ color: '#c62828' }}>!</span> Trap = back to start
+          <span style={{ color: t.sub, margin: '0 3px' }}>&middot;</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ verticalAlign: 'middle' }}>
+            <circle cx="12" cy="12" r="8" stroke="#7b1fa2" strokeWidth="2.5" strokeDasharray="4 3" />
+            <circle cx="12" cy="12" r="3" fill="#7b1fa2" />
+          </svg>
+          <span> Warp = teleport</span>
         </span>
       </div>
 

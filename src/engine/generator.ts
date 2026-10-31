@@ -304,6 +304,25 @@ function placeSpecialTiles(puzzle: Puzzle, rng: () => number): Puzzle {
     trapPlaced++;
   }
 
+  // --- WARP CELLS (1-2, teleports player to a random cell) ---
+  let warpPlaced = 0;
+  const warpTarget = Math.floor(rng() * 2) + 1;
+  // Re-shuffle off-path cells for warp placement
+  const shuffledForWarp = [...offPath].sort(() => rng() - 0.5);
+  for (const [r, c] of shuffledForWarp) {
+    if (warpPlaced >= warpTarget) break;
+    if (grid[r][c].type !== CellType.Empty) continue;
+    let openN = 0;
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols &&
+        grid[nr][nc].type !== CellType.Wall && grid[nr][nc].type !== CellType.TriviaWall) openN++;
+    }
+    if (openN < 2) continue;
+    grid[r][c] = { type: CellType.Warp };
+    warpPlaced++;
+  }
+
   // --- RECALCULATE PAR ---
   // Par = shortest hop count + buffer (so ice/smart routing lets you get under par)
   const PAR_BUFFER = 2;
