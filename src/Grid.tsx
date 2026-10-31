@@ -119,12 +119,14 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
           const isIce = cell.type === CellType.Ice;
           const isSand = cell.type === CellType.Sand;
           const isTrap = cell.type === CellType.Trap;
+          const isWarp = cell.type === CellType.Warp;
           const cellKey = `${r},${c}`;
           const isUnlocked = gameState.unlockedCells.has(cellKey);
           const isFailed = gameState.failedCells.has(cellKey);
           const inPath = pathSet.has(cellKey);
           const triviaQ = puzzle.triviaQuestions.get(cellKey);
           const trapTriggered = gameState.triggeredTraps.has(cellKey);
+          const warpTriggered = gameState.triggeredWarps.has(cellKey);
           const isHead = head && head[0] === r && head[1] === c;
 
           // Base background
@@ -137,6 +139,8 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
           if (isSand) bg = '#ffe0b2';
           if (isTrap && !trapTriggered) bg = '#ffcdd2';
           if (isTrap && trapTriggered) bg = '#f0f1f3';
+          if (isWarp && !warpTriggered) bg = '#e1bee7';
+          if (isWarp && warpTriggered) bg = '#f0f1f3';
 
           // Path fills the cell green
           if (inPath && !isWall && !(isTrivia && !isUnlocked)) {
@@ -211,6 +215,14 @@ export default function Grid({ puzzle, gameState, onCellEnter, onDrawStart, onDr
                   fontSize: Math.max(cellSize * 0.4, 12), fontWeight: 800,
                   color: '#c62828', lineHeight: 1,
                 }}>!</span>
+              )}
+
+              {/* Warp icon — spiral/portal */}
+              {isWarp && !warpTriggered && (
+                <svg width={cellSize * 0.55} height={cellSize * 0.55} viewBox="0 0 24 24" fill="none" style={{ opacity: 0.6 }}>
+                  <circle cx="12" cy="12" r="8" stroke="#7b1fa2" strokeWidth="2" strokeDasharray="4 3" />
+                  <circle cx="12" cy="12" r="3" fill="#7b1fa2" />
+                </svg>
               )}
 
               {/* Start dot — always visible */}

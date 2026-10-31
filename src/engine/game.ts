@@ -18,6 +18,8 @@ export function createGameState(puzzle: Puzzle): GameState {
     triggeredTraps: new Set(),
     trapPenalty: 0,
     backtrackPenalty: 0,
+    triggeredWarps: new Set(),
+    warpedTo: null,
   };
 }
 
@@ -100,8 +102,40 @@ export function addToPath(
       drawing: false,
       triggeredTraps: newTriggered,
       trapPenalty: state.trapPenalty + 2,
-      // Keep checkpoints, unlocked cells, etc.
+      warpedTo: null,
     };
+  }
+
+  // Handle warp — teleport to a random empty cell with +1 penalty
+  if (cellType === CellType.Warp && !state.triggeredWarps.has(`${r},${c}`)) {
+    const newTriggeredWarps = new Set(state.triggeredWarps);
+    newTriggeredWarps.add(`${r},${c}`);
+    // Find all empty cells not on current path
+    const pathSet = new Set(state.path.map(([pr, pc]) => `${pr},${pc}`));
+    const candidates: [number, number][] = [];
+    for (let wr = 0; wr < puzzle.rows; wr++) {
+      for (let wc = 0; wc < puzzle.cols; wc++) {
+        const t = puzzle.grid[wr][wc].type;
+        if ((t === CellType.Empty || t === CellType.Ice || t === CellType.Sand) &&
+            !pathSet.has(`${wr},${wc}`) && !(wr === r && wc === c)) {
+          candidates.push([wr, wc]);
+        }
+      }
+    }
+    if (candidates.length === 0) {
+      // No valid warp destination — just step on it normally
+    } else {
+      // Deterministic "random" pick based on path length
+      const dest = candidates[state.path.length % candidates.length];
+      return {
+        ...state,
+        path: [dest],
+        drawing: false,
+        triggeredWarps: newTriggeredWarps,
+        trapPenalty: state.trapPenalty + 1,
+        warpedTo: dest,
+      };
+    }
   }
 
   const newPath: [number, number][] = [...state.path, [r, c]];
@@ -147,6 +181,8 @@ export function addToPath(
     triggeredTraps: state.triggeredTraps,
     trapPenalty: state.trapPenalty,
     backtrackPenalty: state.backtrackPenalty,
+    triggeredWarps: state.triggeredWarps,
+    warpedTo: null,
   };
 }
 

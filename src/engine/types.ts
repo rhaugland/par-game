@@ -8,6 +8,7 @@ export enum CellType {
   Sand = 6,
   Trap = 7,
   Checkpoint = 8,
+  Warp = 9,
 }
 
 export interface Cell {
@@ -84,6 +85,8 @@ export interface GameState {
   triggeredTraps: Set<string>;
   trapPenalty: number;
   backtrackPenalty: number;
+  triggeredWarps: Set<string>;
+  warpedTo: [number, number] | null;
 }
 
 export interface DailyRecord {
