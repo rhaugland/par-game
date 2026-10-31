@@ -579,35 +579,30 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         </div>
         <div style={st.headerCenter}>
           {/* Candy Cigar Studios */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 4 }}>
-            <svg width="140" height="36" viewBox="0 0 140 36" fill="none" style={{ display: 'block' }}>
-              {/* Cigar body */}
-              <rect x="30" y="16" width="44" height="7" rx="3.5" fill={dark ? '#a67c52' : '#8B6914'} />
-              <rect x="30" y="16" width="10" height="7" rx="3.5" fill={dark ? '#c4956a' : '#B8860B'} />
-              <rect x="68" y="17" width="6" height="5" rx="2" fill={dark ? '#777' : '#bbb'} opacity="0.5" />
-              {/* Tip glow */}
-              <circle cx="73" cy="19.5" r="2.5" fill="#ff6b35" opacity="0.8" />
-              <circle cx="73" cy="19.5" r="1.2" fill="#ffcc02" opacity="0.9" />
-              {/* Pink smoke */}
-              <path d="M74 18 Q80 14 78 8 Q76 2 82 1" stroke="#ff69b4" strokeWidth="2.5" fill="none" opacity="0.5" strokeLinecap="round" />
-              <path d="M75 17 Q84 12 82 6 Q80 0 88 -1" stroke="#ff69b4" strokeWidth="2" fill="none" opacity="0.35" strokeLinecap="round" />
-              <path d="M75 19 Q82 16 84 11 Q86 6 92 5" stroke="#ff9ec4" strokeWidth="1.8" fill="none" opacity="0.3" strokeLinecap="round" />
-              <path d="M74 18 Q77 15 76 10 Q75 5 78 3" stroke="#ffb6d3" strokeWidth="1.5" fill="none" opacity="0.25" strokeLinecap="round" />
-              {/* Smoke puffs */}
-              <circle cx="82" cy="1" r="3" fill="#ff69b4" opacity="0.2" />
-              <circle cx="88" cy="-1" r="2.5" fill="#ff69b4" opacity="0.15" />
-              <circle cx="78" cy="3" r="2" fill="#ffb6d3" opacity="0.2" />
-            </svg>
+          <div style={{
+            position: 'relative', display: 'flex', flexDirection: 'column',
+            alignItems: 'center', marginBottom: 6, padding: '6px 0',
+          }}>
+            {/* Pink haze glow behind text */}
             <div style={{
-              fontSize: 9, fontWeight: 700, letterSpacing: 3.5,
-              color: dark ? '#888' : '#999', textTransform: 'uppercase',
-              marginTop: -2,
+              position: 'absolute', top: '50%', left: '50%',
+              transform: 'translate(-50%, -55%)',
+              width: 160, height: 28, borderRadius: '50%',
+              background: 'radial-gradient(ellipse, rgba(255,105,180,0.25) 0%, rgba(255,105,180,0.08) 50%, transparent 70%)',
+              filter: 'blur(6px)',
+              pointerEvents: 'none',
+            }} />
+            <div style={{
+              position: 'relative',
+              fontSize: 10, fontWeight: 700, letterSpacing: 3.5,
+              color: dark ? '#ccc' : '#555', textTransform: 'uppercase',
             }}>
               candy cigar studios
             </div>
             <div style={{
+              position: 'relative',
               fontSize: 8, fontWeight: 500, letterSpacing: 2,
-              color: dark ? '#555' : '#bbb', marginTop: 2,
+              color: dark ? '#666' : '#bbb', marginTop: 2,
             }}>
               presents
             </div>
