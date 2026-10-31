@@ -579,38 +579,38 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         </div>
         <div style={st.headerCenter}>
           {/* Candy Cigar Studios */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, marginBottom: 2 }}>
-            <svg width="120" height="32" viewBox="0 0 120 32" fill="none" style={{ display: 'block' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 4 }}>
+            <svg width="140" height="36" viewBox="0 0 140 36" fill="none" style={{ display: 'block' }}>
               {/* Cigar body */}
-              <rect x="10" y="18" width="52" height="8" rx="4" fill={dark ? '#a67c52' : '#8B6914'} />
-              <rect x="10" y="18" width="12" height="8" rx="4" fill={dark ? '#c4956a' : '#B8860B'} />
-              <rect x="54" y="19" width="8" height="6" rx="2" fill={dark ? '#888' : '#aaa'} opacity="0.6" />
-              {/* Cigar tip glow */}
-              <circle cx="61" cy="22" r="3" fill="#ff6b35" opacity="0.8" />
-              <circle cx="61" cy="22" r="1.5" fill="#ffcc02" opacity="0.9" />
-              {/* Candy smoke pieces */}
-              {/* Lollipop */}
-              <circle cx="68" cy="12" r="4" fill="#ff69b4" opacity="0.7" />
-              <line x1="68" y1="16" x2="68" y2="20" stroke="#ff69b4" strokeWidth="1.2" opacity="0.5" />
-              {/* Candy cane swirl */}
-              <path d="M78 8 Q82 4 82 8 Q82 12 78 12" stroke="#e53935" strokeWidth="2" fill="none" opacity="0.6" />
-              <path d="M78 8 Q82 4 82 8 Q82 12 78 12" stroke="#fff" strokeWidth="1" fill="none" opacity="0.3" strokeDasharray="2 2" />
-              {/* Gummy bear */}
-              <ellipse cx="90" cy="10" rx="3.5" ry="4" fill="#4caf50" opacity="0.6" />
-              <circle cx="88.5" cy="7" r="1.5" fill="#4caf50" opacity="0.6" />
-              <circle cx="91.5" cy="7" r="1.5" fill="#4caf50" opacity="0.6" />
-              {/* Wrapped candy */}
-              <ellipse cx="102" cy="13" rx="4" ry="3" fill="#ffd600" opacity="0.6" />
-              <line x1="97" y1="13" x2="95" y2="11" stroke="#ffd600" strokeWidth="1.5" opacity="0.5" />
-              <line x1="107" y1="13" x2="109" y2="11" stroke="#ffd600" strokeWidth="1.5" opacity="0.5" />
-              {/* Small smoke wisps connecting candy to cigar */}
-              <path d="M62 20 Q65 16 68 16" stroke={dark ? '#555' : '#ccc'} strokeWidth="0.8" fill="none" opacity="0.4" />
-              <path d="M63 19 Q72 10 78 10" stroke={dark ? '#555' : '#ccc'} strokeWidth="0.8" fill="none" opacity="0.3" />
-              <path d="M63 18 Q78 6 90 10" stroke={dark ? '#555' : '#ccc'} strokeWidth="0.8" fill="none" opacity="0.25" />
-              <path d="M63 19 Q85 4 102 13" stroke={dark ? '#555' : '#ccc'} strokeWidth="0.8" fill="none" opacity="0.2" />
-              {/* "presents" text */}
-              <text x="60" y="30" fill={dark ? '#666' : '#999'} fontSize="7" fontWeight="500" letterSpacing="2.5" fontFamily="-apple-system, system-ui, sans-serif">presents</text>
+              <rect x="30" y="16" width="44" height="7" rx="3.5" fill={dark ? '#a67c52' : '#8B6914'} />
+              <rect x="30" y="16" width="10" height="7" rx="3.5" fill={dark ? '#c4956a' : '#B8860B'} />
+              <rect x="68" y="17" width="6" height="5" rx="2" fill={dark ? '#777' : '#bbb'} opacity="0.5" />
+              {/* Tip glow */}
+              <circle cx="73" cy="19.5" r="2.5" fill="#ff6b35" opacity="0.8" />
+              <circle cx="73" cy="19.5" r="1.2" fill="#ffcc02" opacity="0.9" />
+              {/* Pink smoke */}
+              <path d="M74 18 Q80 14 78 8 Q76 2 82 1" stroke="#ff69b4" strokeWidth="2.5" fill="none" opacity="0.5" strokeLinecap="round" />
+              <path d="M75 17 Q84 12 82 6 Q80 0 88 -1" stroke="#ff69b4" strokeWidth="2" fill="none" opacity="0.35" strokeLinecap="round" />
+              <path d="M75 19 Q82 16 84 11 Q86 6 92 5" stroke="#ff9ec4" strokeWidth="1.8" fill="none" opacity="0.3" strokeLinecap="round" />
+              <path d="M74 18 Q77 15 76 10 Q75 5 78 3" stroke="#ffb6d3" strokeWidth="1.5" fill="none" opacity="0.25" strokeLinecap="round" />
+              {/* Smoke puffs */}
+              <circle cx="82" cy="1" r="3" fill="#ff69b4" opacity="0.2" />
+              <circle cx="88" cy="-1" r="2.5" fill="#ff69b4" opacity="0.15" />
+              <circle cx="78" cy="3" r="2" fill="#ffb6d3" opacity="0.2" />
             </svg>
+            <div style={{
+              fontSize: 9, fontWeight: 700, letterSpacing: 3.5,
+              color: dark ? '#888' : '#999', textTransform: 'uppercase',
+              marginTop: -2,
+            }}>
+              candy cigar studios
+            </div>
+            <div style={{
+              fontSize: 8, fontWeight: 500, letterSpacing: 2,
+              color: dark ? '#555' : '#bbb', marginTop: 2,
+            }}>
+              presents
+            </div>
           </div>
           <div style={{ ...st.title, color: t.text }}>par puzzle</div>
           <div style={{ ...st.day, color: t.sub }}>
