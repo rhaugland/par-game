@@ -430,18 +430,6 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
         setShowArcade(false);
         break;
       }
-      case 'skip_checkpoint': {
-        if (puzzle.checkpoints.length === 0) return;
-        const unvisited = puzzle.checkpoints.findIndex((_cp, i) => !gameState.checkpointsVisited.has(i));
-        if (unvisited === -1) return;
-        setGameState(s => {
-          if (!s) return s;
-          const newCp = new Set(s.checkpointsVisited);
-          newCp.add(unvisited);
-          return { ...s, checkpointsVisited: newCp, powerupsUsed: newUsed };
-        });
-        break;
-      }
       case 'par_path': {
         const optPath = solvePathWithFeatures(puzzle.grid, puzzle.start, puzzle.end, puzzle.rows, puzzle.cols, puzzle.checkpoints);
         setGameState(s => s ? { ...s, parPath: optPath, powerupsUsed: newUsed } : s);
@@ -518,9 +506,6 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
     : (moves + penalties) - puzzle.par;
   const diff = displayScore;
   const cumScore = totalScore(round);
-
-  const cpTotal = puzzle.checkpoints.length;
-  const cpDone = gameState.checkpointsVisited.size;
 
   const t = {
     bg: dark ? '#121212' : '#fff',
@@ -700,13 +685,6 @@ export default function App({ clerkEnabled }: { clerkEnabled: boolean }) {
       {gameState.completed && !showHoleSummary && (
         <div style={{ ...st.hint, color: t.sub }}>
           Completed &middot; <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setShowScore(true)}>view score</span>
-        </div>
-      )}
-
-      {cpTotal > 0 && !gameState.completed && (
-        <div style={{ ...st.hint, color: t.sub2, fontSize: 12, marginBottom: 8 }}>
-          Checkpoints: {cpDone}/{cpTotal}
-          {cpDone < cpTotal && ' — visit all before reaching goal'}
         </div>
       )}
 
